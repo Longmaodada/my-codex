@@ -66,7 +66,7 @@ QuotaWindow {
 
 ### 不复制 UI、品牌资产或产品文案
 
-用户提供的两张图片是 My Codex 的主要视觉参考。`quota-float` 只用于研究窗口、状态和数据适配方式，不机械复制其 UI、图标、皮肤、更新器或商业授权功能。
+`quota-float` 只用于研究窗口、状态和数据适配方式，不机械复制其 UI、图标、皮肤、更新器或商业授权功能。
 
 ### 不把额度推算成 Token 账单
 
@@ -137,7 +137,6 @@ Rust application core
 
 ```text
 my-codex/
-├─ references/                 视觉参考图
 ├─ docs/                       研究、来源、隐私、验收
 ├─ scripts/                    Windows 构建与站点辅助脚本
 ├─ src/
@@ -173,4 +172,3 @@ my-codex/
 13. Windows Installer：在完整 MSVC/SDK 环境生成并验收 EXE、NSIS 和 MSI。
 
 每个阶段的完成标准不是“文件存在”，而是相应自动测试通过且人工场景有证据。当前状态以 [acceptance.md](acceptance.md) 为准。
-

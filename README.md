@@ -4,14 +4,6 @@ My Codex 是一款本地优先的 Codex 配套桌面应用，提供额度悬浮�
 
 > 当前交付状态（2026-08-12）：仓库包含可开发、可测试的源代码与桌面打包配置，但本次执行环境缺少 Rust、MSVC 和 Windows SDK，**尚未产出或验证 `My Codex.exe`、NSIS `.exe` 安装包和 `.msi` 安装包**。真实在线额度也尚未用登录账户完成端到端验收。Mock 数字只用于界面演示，不会冒充真实数据。
 
-## 截图与设计参考
-
-| 桌面额度悬浮窗 | 主控制台 |
-| --- | --- |
-| ![悬浮窗参考](references/widget.png) | ![主控制台参考](references/dashboard.png) |
-
-参考图用于布局比例、视觉密度、毛玻璃、渐变仪表盘、热力图和排行榜的设计校准，不代表真实账户数据。
-
 ## 功能
 
 - 双窗口：约 280 × 430 的无边框悬浮窗，以及可缩放主 Dashboard；Compact Mode 约 110 × 48。
@@ -128,7 +120,6 @@ src/                    React UI、stores、hooks、services、types
 src-tauri/src/          Rust adapter、本地分析、数据库、托盘与窗口
 tests/                  前端/站点测试
 docs/                   研究、数据来源、隐私与验收文档
-references/             用户提供的视觉参考图
 scripts/                可重复构建脚本
 ```
 
