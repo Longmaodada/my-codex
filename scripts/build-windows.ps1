@@ -44,14 +44,16 @@ function Import-VsDeveloperEnvironment {
     if ($env:ProgramFiles) {
         $candidateVsWhere += Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
     }
-    $candidateVsWhere = $candidateVsWhere | Where-Object { Test-Path -LiteralPath $_ }
+    $candidateVsWhere = @($candidateVsWhere | Where-Object { Test-Path -LiteralPath $_ })
 
     if (-not $candidateVsWhere) {
         throw 'Visual Studio Installer/vswhere.exe was not found. Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows 10/11 SDK.'
     }
 
     $vsWhere = $candidateVsWhere[0]
-    $installationPath = & $vsWhere -latest -products * `
+    # Quote the wildcard so PowerShell does not expand it into workspace paths
+    # before invoking vswhere.
+    $installationPath = & $vsWhere -latest -products '*' `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
         -property installationPath
 

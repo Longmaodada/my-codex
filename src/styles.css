@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Segoe UI", sans-serif;
   color: #252331;
   background: transparent;
@@ -130,26 +130,29 @@ svg { display: block; }
 .heat-total { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 5px; color: var(--text-muted); font-size: 7px; }.heat-total strong { color: var(--text); font-size: 11px; }.heat-total small { font-size: 6px; color: var(--text-muted); }
 .widget-footer { position: relative; z-index: 8; display: grid; grid-template-columns: 1.45fr .85fr .7fr; gap: 4px; height: 31px; margin-top: auto; padding: 2px; border-radius: 11px; background: rgba(242,240,244,.86); box-shadow: 0 -5px 12px rgba(61,48,93,.06); }.widget-footer button { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(255,255,255,.88); border-radius: 9px; background: rgba(255,255,255,.62); color: var(--text-secondary); font-size: 8px; font-weight: 650; cursor: pointer; transition: .18s ease; }.widget-footer button:hover { background: var(--surface-strong); transform: translateY(-2px) scale(1.01); }.widget-footer svg { width: 10px; height: 10px; }
 :root[data-theme="dark"] .widget-footer { background: rgba(27,26,36,.9); }
-.widget-shell.is-compact { border-radius: 999px; clip-path: inset(0 round 999px); }.compact-content { position: relative; z-index: 2; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; outline: 0; border-radius: inherit; background: rgba(239, 237, 232, .94); box-shadow: 0 12px 32px rgba(58, 46, 93, .2); cursor: grab; }.compact-content:active { cursor: grabbing; }.compact-content > span { display: flex; align-items: baseline; gap: 3px; }.compact-content strong { font-size: 15px; letter-spacing: -.7px; }.compact-content small { color: var(--text-muted); font-size: 7px; }
+.widget-shell.is-compact { border-radius: 999px; clip-path: inset(0 round 999px); }.compact-content { position: relative; z-index: 2; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; outline: 0; border-radius: inherit; background: rgba(239, 237, 232, .94); box-shadow: 0 12px 32px rgba(58, 46, 93, .2); cursor: default; }.compact-content > span { display: flex; align-items: baseline; gap: 3px; }.compact-content strong { font-size: 15px; letter-spacing: -.7px; }.compact-content small { color: var(--text-muted); font-size: 7px; }
 :root[data-theme="dark"] .compact-content { background: rgba(21,20,29,.96); }
 .widget-shell.is-compact .ambient { display: none; }
 
-/* Keep the native drag surface stable while the capsule animates between sizes. */
-.widget-shell[data-tauri-drag-region] { -webkit-app-region: drag; isolation: isolate; contain: paint; }
-.widget-shell[data-tauri-drag-region] button,
-.widget-shell[data-tauri-drag-region] .widget-actions,
-.widget-shell[data-tauri-drag-region] .widget-footer { -webkit-app-region: no-drag; }
-.compact-content { flex-direction: row-reverse; gap: 9px; padding: 0 14px; }
-.compact-quota-copy { flex: none; }
+/* Widget movement is handled explicitly so the lock state cannot be bypassed
+   by a native drag region. */
+.widget-shell { isolation: isolate; contain: paint; }
+.compact-content { flex-direction: row !important; justify-content: center; gap: 9px; padding: 0; }
+.compact-quota-copy { order: 1; flex: none; }
 .compact-quota-copy strong { font-size: 17px; }
 .compact-quota-copy small { font-size: 9px; }
-.compact-meter { position: relative; width: 34px; height: 34px; flex: none; display: block; }
+.compact-meter { order: 2; position: relative; width: 34px; height: 34px; flex: none; display: block; }
 .compact-meter svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .compact-meter circle { fill: none; stroke-width: 4; }
 .compact-meter-track { stroke: rgba(82, 99, 86, .18); }
-.compact-meter-value { stroke: #35b967; stroke-linecap: round; transition: stroke .2s ease, stroke-dasharray .35s ease; }
-.compact-meter-value.is-low { stroke: #ed4c3d; }
+.compact-meter-value { stroke: url(#compact-quota-gradient); stroke-linecap: round; transition: stroke-dasharray .45s cubic-bezier(.22, 1, .36, 1); }
 .reset-row strong { font-variant-numeric: tabular-nums; }
+
+/* The dashboard has no native title bar, so its header is the dedicated drag surface. */
+.dashboard-header[data-tauri-drag-region] { -webkit-app-region: drag; user-select: none; }
+.dashboard-header[data-tauri-drag-region] button,
+.dashboard-header[data-tauri-drag-region] .dashboard-actions,
+.dashboard-header[data-tauri-drag-region] .provider-pill { -webkit-app-region: no-drag; }
 
 /* Dashboard shell */
 .dashboard-shell { position: relative; isolation: isolate; contain: paint; min-height: 100vh; height: 100vh; overflow: hidden; background: linear-gradient(145deg, rgba(232,230,224,.98), rgba(226,223,231,.98)); color: var(--text); }
@@ -326,3 +329,4 @@ svg { display: block; }
   .settings-panel { padding: 20px 17px; }
   .widget-content { padding: 10px; }
 }
+

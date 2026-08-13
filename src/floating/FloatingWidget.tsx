@@ -1,9 +1,9 @@
-import { GearSix, LockSimple, Power, SquaresFour, ArrowsClockwise, CloudCheck } from "@phosphor-icons/react";
+﻿import { GearSix, LockSimple, Power, SquaresFour, ArrowsClockwise, CloudCheck } from "@phosphor-icons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Heatmap } from "../components/charts/Heatmap";
-import { QuotaRing } from "../components/charts/QuotaRing";
+import { QuotaArc, QuotaRing } from "../components/charts/QuotaRing";
 import { BrandMark } from "../components/common/BrandMark";
 import { GlassCard } from "../components/common/GlassCard";
 import { MetricLegend } from "../components/common/MetricLegend";
@@ -15,10 +15,8 @@ import { formatDateTime, formatTokens, percentage } from "../utils/format";
 
 export function FloatingWidget() {
   const { snapshot, refreshing, refresh, updateSettings } = useAppStore();
-  const [compact, setCompact] = useState(false);
-  const idleTimer = useRef<number | null>(null);
-  const hoverTimer = useRef<number | null>(null);
-  const capsulePointer = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const [compact, setCompact] = useState(() => snapshot?.settings.capsuleMode ?? false);
+  const compactTarget = useRef(compact);
   const quota = snapshot?.quota;
   const usage = snapshot?.usage;
   const settings = snapshot?.settings;
@@ -33,79 +31,25 @@ export function FloatingWidget() {
   const weekShare = weekGoal ? percentage(usage?.week.total ?? 0, weekGoal) : null;
   const total90 = useMemo(() => usage?.daily.reduce((sum, day) => sum + day.total, 0) ?? 0, [usage?.daily]);
 
-  const clearIdle = () => {
-    if (idleTimer.current) window.clearTimeout(idleTimer.current);
-    idleTimer.current = null;
-  };
-
-  const clearHover = () => {
-    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-  };
-
-  const scheduleIdle = () => {
-    clearIdle();
-    if (!capsuleMode) return;
-    idleTimer.current = window.setTimeout(() => {
-      setCompact(true);
-      void setWidgetCompact(true);
-    }, 250);
-  };
-
   useEffect(() => {
-    scheduleIdle();
-    return () => { clearIdle(); clearHover(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capsuleMode]);
-
-  useEffect(() => {
-    if (!settings) return;
+    compactTarget.current = capsuleMode;
     setCompact(capsuleMode);
-    clearHover();
     void setWidgetCompact(capsuleMode);
   }, [capsuleMode]);
 
-  useEffect(() => () => {
-    clearIdle();
-    clearHover();
-  }, []);
-
-  const expand = () => {
-    clearIdle();
-    capsulePointer.current = null;
-    if (compact) {
-      setCompact(false);
-      void setWidgetCompact(false);
-    }
+  const requestCompact = (next: boolean) => {
+    if (!capsuleMode || compactTarget.current === next) return;
+    compactTarget.current = next;
+    setCompact(next);
+    void setWidgetCompact(next).then(() => {
+      if (compactTarget.current !== next) void setWidgetCompact(compactTarget.current);
+    });
   };
 
-  const scheduleExpand = () => {
-    if (!compact || capsulePointer.current) return;
-    clearHover();
-    hoverTimer.current = window.setTimeout(expand, 140);
-  };
-
-  const handleCapsulePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (settings?.lockPosition) return;
-    capsulePointer.current = { x: event.clientX, y: event.clientY, moved: false };
-    if (isTauri()) void getCurrentWindow().startDragging();
-  };
-
-  const handleCapsulePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const pointer = capsulePointer.current;
-    if (!pointer) return;
-    pointer.moved = pointer.moved || Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 5;
-  };
-
-  const handleCapsuleClick = () => {
-    const moved = capsulePointer.current?.moved ?? false;
-    capsulePointer.current = null;
-    if (!moved) expand();
-  };
-
-  const handleCapsuleDoubleClick = () => {
-    capsulePointer.current = null;
-    expand();
+  const startWindowDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || !isTauri() || settings?.lockPosition) return;
+    if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+    void getCurrentWindow().startDragging();
   };
 
   if (!snapshot || !usage || !quota || !settings) return null;
@@ -113,27 +57,20 @@ export function FloatingWidget() {
   return (
     <motion.main
       className={`widget-shell ${compact ? "is-compact" : ""}`}
-      data-tauri-drag-region={!compact && !settings.lockPosition ? "" : undefined}
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1, width: compact ? 140 : 320, height: compact ? 56 : 500 }}
       transition={{ type: "spring", stiffness: 290, damping: 28 }}
-      onPointerDown={compact ? handleCapsulePointerDown : undefined}
-      onPointerMove={compact ? handleCapsulePointerMove : undefined}
-      onPointerEnter={compact ? scheduleExpand : undefined}
-      onPointerLeave={capsuleMode ? scheduleIdle : undefined}
+      onPointerEnter={() => requestCompact(false)}
+      onPointerLeave={() => requestCompact(true)}
+      onPointerDown={startWindowDrag}
     >
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       {compact ? (
-        <button className="compact-content" data-tauri-drag-region={undefined} onClick={handleCapsuleClick} onDoubleClick={handleCapsuleDoubleClick} aria-label="展开 My Codex 悬浮窗">
+        <motion.div className="compact-content" aria-label="展开 My Codex 悬浮窗" initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.82 }} transition={{ type: "spring", stiffness: 360, damping: 26 }}>
           <span className="compact-quota-copy"><strong>{remainingLabel}</strong><small>剩余额度</small></span>
-          <span className="compact-meter" aria-hidden="true">
-            <svg viewBox="0 0 42 42" role="presentation">
-              <circle className="compact-meter-track" cx="21" cy="21" r="16" />
-              <circle className={`compact-meter-value ${(remainingPercent ?? 0) <= 20 ? "is-low" : ""}`} cx="21" cy="21" r="16" pathLength="100" style={{ strokeDasharray: `${Math.max(0, Math.min(100, remainingPercent ?? 0))} 100` }} />
-            </svg>
-          </span>
-        </button>
+          <span className="compact-meter"><QuotaArc value={remainingPercent} size={42} stroke={4} /></span>
+        </motion.div>
       ) : (
         <AnimatePresence mode="wait">
           <motion.div key="expanded" className="widget-content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -149,7 +86,7 @@ export function FloatingWidget() {
               </div>
             </header>
 
-            {settings.mockMode && <div className="mock-banner"><SourceBadge source="mock" compact /><span>界面展示数据，不是账户额度</span></div>}
+            {settings.mockMode && <div className="mock-banner"><SourceBadge source="mock" compact /><span>界面展示数据，仅用于验证完整界面</span></div>}
 
             <GlassCard className="widget-hero">
                 <QuotaRing value={selectedWindow?.remainingPercent ?? null} size={98} stroke={9} sublabel={selectedWindow?.label ?? "额度"} />
@@ -190,3 +127,4 @@ export function FloatingWidget() {
     </motion.main>
   );
 }
+

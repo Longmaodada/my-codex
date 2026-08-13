@@ -72,9 +72,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ snapshot: { ...current, settings: next } });
     try {
       await saveSettings(next);
-      // Settings can change the active provider (especially mockMode), source
-      // labels, quota data, and native window state. Reload all of it.
-      await get().reload();
+      // Locking only changes native window behavior. Avoid reloading the whole
+      // snapshot here: a reload reapplies capsule geometry while the pointer
+      // is still over the expanded widget.
+      if ("mockMode" in patch) await get().reload();
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "设置保存失败" });
     }

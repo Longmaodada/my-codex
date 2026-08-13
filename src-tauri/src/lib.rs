@@ -62,6 +62,7 @@ pub fn run() {
             app.manage(state);
 
             window::apply_settings(app.handle(), &settings)?;
+            window::set_compact(app.handle(), settings.capsule_mode)?;
             window::install_close_to_tray(app.handle())?;
             tray::setup(app)?;
             setup_global_shortcuts(app)?;

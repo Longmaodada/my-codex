@@ -8,4 +8,8 @@ When implementing from a selected generated mock, treat that image as the source
 
 Prototype feedback to preserve: the floating capsule does not show the app icon; its quota meter uses a continuous deep-blue-to-red gradient with visible high/mid/low bands; keep the existing capsule transition animation while keeping the native drag surface stable; clip transparent/backdrop overflow so neither the capsule nor the My Codex window shows corner traces.
 
+Current interaction decision: the capsule expands to the My Codex state only while the pointer is over it, and collapses when the pointer leaves. Click, double-click, drag gestures, and other expansion triggers are intentionally disabled.
+
+Latest prototype feedback: the capsule must always display the percentage before the hollow quota ring, with no mojibake text. Both the capsule and My Codex dashboard must remain draggable through their non-interactive surfaces.
+
 Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
