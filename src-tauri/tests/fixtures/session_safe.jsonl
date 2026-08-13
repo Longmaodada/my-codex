@@ -1,0 +1,4 @@
+{"timestamp":"2026-08-12T01:00:00Z","type":"session_meta","payload":{"id":"safe-session-001","timestamp":"2026-08-12T01:00:00Z","cwd":"D:\\sanitized\\sample-project"}}
+{"timestamp":"2026-08-12T01:00:10Z","type":"turn_context","payload":{"cwd":"D:\\sanitized\\sample-project","model":"gpt-test"}}
+{"timestamp":"2026-08-12T01:00:20Z","type":"event_msg","payload":{"type":"skill_invocation","skill_name":"browser","token_usage":{"input_tokens":20,"cached_input_tokens":5,"output_tokens":10,"reasoning_output_tokens":2,"total_tokens":30}}}
+{"timestamp":"2026-08-12T01:00:30Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":25,"output_tokens":50,"reasoning_output_tokens":10,"total_tokens":150},"last_token_usage":{"input_tokens":100,"cached_input_tokens":25,"output_tokens":50,"reasoning_output_tokens":10,"total_tokens":150}}}}
