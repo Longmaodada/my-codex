@@ -6,9 +6,10 @@
 
 | 项目 | 状态 | 证据/说明 |
 | --- | --- | --- |
+| 两张参考图复制到 `references/` | 通过 | 源/目标 SHA-256 分别一致：`39B7…823F`、`6BA9…5A33` |
 | 研究、数据来源、隐私文档 | 通过 | `docs/reference-research.md`、`docs/data-sources.md`、`docs/privacy-boundary.md` |
 | Windows 构建脚本语法与前置检查 | 通过 | PowerShell 语法解析通过；实际执行在缺少 `rustc.exe` 时明确失败且未伪造产物 |
-| 浏览器 Mock UI | 通过 | `npm.cmd run typecheck`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run test:sites` 全部通过 |
+| 浏览器 Mock UI | 通过 | `npm.cmd run typecheck`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run test:sites` 全部通过；视觉证据见 `docs/qa/` |
 | Tauri 桌面启动 | 待验收 | 当前环境无 Rust/MSVC/Windows SDK |
 | 真实 Codex 登录与在线额度 | 待验收 | 未使用真实登录账户做端到端验证 |
 | Windows 主程序/安装器 | 失败 | 当前环境未生成 `My Codex.exe`、NSIS `.exe` 或 `.msi`；不得称为已交付安装包 |

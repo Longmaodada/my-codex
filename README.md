@@ -1,8 +1,22 @@
 # My Codex
 
+## 0.1.2 交付说明
+
+当前版本采用 Windows 绿色版交付：解压后直接运行 `my-codex.exe`，不需要安装器，也不会写入传统安装目录。胶囊悬浮窗支持拖动；鼠标停留约 140 毫秒后展开 My Codex，鼠标离开整个 My Codex 界面后自动收起；如果悬停不方便，也可以单击或双击胶囊打开。展开后的 My Codex 面板同样可以拖动。
+
+发布目录必须保留 EXE 旁边的 `WebView2Loader.dll`、资源目录及其他 Tauri 运行文件，不能只单独复制 EXE。
+
 My Codex 是一款本地优先的 Codex 配套桌面应用，提供额度悬浮窗、Token 使用统计、项目/Skill/模型分析和缓存分析。桌面端采用 Tauri 2 + Rust + React + TypeScript；浏览器预览自动使用明确标识的 Mock 数据。
 
 > 当前交付状态（2026-08-12）：仓库包含可开发、可测试的源代码与桌面打包配置，但本次执行环境缺少 Rust、MSVC 和 Windows SDK，**尚未产出或验证 `My Codex.exe`、NSIS `.exe` 安装包和 `.msi` 安装包**。真实在线额度也尚未用登录账户完成端到端验收。Mock 数字只用于界面演示，不会冒充真实数据。
+
+## 截图与设计参考
+
+| 桌面额度悬浮窗 | 主控制台 |
+| --- | --- |
+| ![悬浮窗参考](references/widget.png) | ![主控制台参考](references/dashboard.png) |
+
+参考图用于布局比例、视觉密度、毛玻璃、渐变仪表盘、热力图和排行榜的设计校准，不代表真实账户数据。
 
 ## 功能
 
@@ -120,6 +134,7 @@ src/                    React UI、stores、hooks、services、types
 src-tauri/src/          Rust adapter、本地分析、数据库、托盘与窗口
 tests/                  前端/站点测试
 docs/                   研究、数据来源、隐私与验收文档
+references/             用户提供的视觉参考图
 scripts/                可重复构建脚本
 ```
 

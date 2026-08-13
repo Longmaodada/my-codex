@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.2] - 2026-08-13
+
+### Fixed
+
+- 胶囊支持悬停后自动展开，鼠标离开 My Codex 悬浮窗后自动收起。
+- 保留胶囊单击与双击展开入口，并修复拖动时误触发展开的问题。
+- 胶囊和展开后的 My Codex 窗口都可以继续拖动。
+
+### Distribution
+
+- 本版本目标是 Windows 绿色版：直接运行 `my-codex.exe`，不再制作安装包。
+- 绿色版仍需要 Windows WebView2 运行时；首次运行前请解压完整目录。
+
+## [0.1.1] - 2026-08-13
+
+### Fixed
+
+- 修复点击胶囊展开 My Codex 后因误触发自动收起而立即闪回的问题。
+- 生成并验证 Windows 版本安装包。
+
 本项目的显著变更记录在此文件。格式参考 Keep a Changelog，版本号遵循 Semantic Versioning。
 
 ## [Unreleased]

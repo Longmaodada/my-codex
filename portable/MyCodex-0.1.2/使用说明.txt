@@ -1,0 +1,6 @@
+﻿My Codex 0.1.2 Windows 绿色版
+
+直接双击 my-codex.exe 即可运行，无需安装。
+请保留本目录结构；Windows 需要 WebView2 Runtime。
+
+交互：鼠标移入胶囊自动展开，移出 My Codex 界面自动收起；胶囊和展开窗口均可拖动，双击胶囊也可打开。
