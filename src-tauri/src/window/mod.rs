@@ -127,14 +127,6 @@ pub fn apply_settings(app: &AppHandle, settings: &AppSettings) -> AppResult<()> 
     dashboard
         .set_skip_taskbar(true)
         .map_err(|error| AppError::Window(error.to_string()))?;
-    let (width, height) = if settings.capsule_mode {
-        (FLOATING_COMPACT_WIDTH, FLOATING_COMPACT_HEIGHT)
-    } else {
-        (FLOATING_EXPANDED_WIDTH, FLOATING_EXPANDED_HEIGHT)
-    };
-    floating
-        .set_size(Size::Logical(LogicalSize::new(width, height)))
-        .map_err(|error| AppError::Window(error.to_string()))?;
     if let (Some(x), Some(y)) = (settings.widget_x, settings.widget_y) {
         floating
             .set_position(Position::Logical(LogicalPosition::new(

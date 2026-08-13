@@ -1,9 +1,11 @@
 import { ArrowsClockwise, CaretDown, GearSix, Minus, Moon, SidebarSimple, Square, Sun, X } from "@phosphor-icons/react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { BrandMark } from "../components/common/BrandMark";
 import { SourceBadge } from "../components/common/SourceBadge";
 import { windowAction } from "../services/backend";
+import { isTauri } from "../services/backend";
 import type { NavigationTarget } from "../services/backendEvents";
 import { useAppStore } from "../stores/appStore";
 import type { ProjectUsage } from "../types/analytics";
@@ -46,7 +48,11 @@ export function Dashboard() {
     <motion.main className="dashboard-shell" initial={{ opacity: 0, scale: 0.975 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}>
       <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
       <div className="top-light" />
-      <header className="dashboard-header" data-tauri-drag-region>
+      <header className="dashboard-header" data-tauri-drag-region onPointerDown={(event) => {
+        if (event.button !== 0 || !isTauri()) return;
+        if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+        void getCurrentWindow().startDragging();
+      }}>
         <button className="sidebar-toggle" onClick={() => setSidebarOpen((value) => !value)}><SidebarSimple /></button>
         <div className="brand-lockup" data-tauri-drag-region><BrandMark size={38} /><span><strong>My Codex</strong><small>{snapshot.quota.plan ?? "未连接"}</small></span></div>
         <div className="dashboard-center" data-tauri-drag-region><strong>Codex</strong><SourceBadge source={source} compact /></div>

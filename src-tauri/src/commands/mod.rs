@@ -44,19 +44,9 @@ fn default_limit() -> u16 {
 #[tauri::command]
 pub async fn bootstrap(state: State<'_, AppState>) -> CommandResult<BootstrapResponse> {
     let settings = state.settings().map_err(CommandError::from)?;
-    // The frontend does not need to wait for a later event subscription to get
-    // its first real snapshot. Respect the scheduler/backoff, but perform the
-    // initial due refresh as part of bootstrap.
-    let quota = if state.refresh_due() {
-        let seconds = state.recommended_refresh_seconds();
-        state
-            .refresh_quota(seconds)
-            .await
-            .map_err(CommandError::from)?
-            .output
-    } else {
-        state.current_quota().map_err(CommandError::from)?
-    };
+    // Bootstrap must be fast. The background scheduler refreshes stale quota
+    // data and emits quota-updated when the fresh result is ready.
+    let quota = state.current_quota().map_err(CommandError::from)?;
     let refresh = state.refresh_status().map_err(CommandError::from)?;
     let analytics = state
         .database
@@ -250,6 +240,9 @@ pub fn save_settings(
         .update_settings(settings)
         .map_err(CommandError::from)?;
     window::apply_settings(&app, &internal_saved).map_err(CommandError::from)?;
+    if internal_saved.capsule_mode != previous.capsule_mode {
+        window::set_compact(&app, internal_saved.capsule_mode).map_err(CommandError::from)?;
+    }
     let saved = WireSettings::from(internal_saved);
     tray::update_always_on_top_check(&app, saved.always_on_top);
     let _ = app.emit("my-codex://settings-updated", saved.clone());
