@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4] - 2026-08-14
+
+### Fixed
+
+- Keep the expanded My Codex surface visible after the floating window position is locked; it no longer returns to the capsule on pointer leave.
+
 ## [0.1.3] - 2026-08-13
 
 ### Fixed

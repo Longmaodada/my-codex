@@ -15,7 +15,9 @@ use crate::{
     database::Database,
     error::{AppError, AppResult},
     notifications::NotificationController,
-    quota::{CapabilityProbe, ProviderKind, ProviderOutput, QuotaService, QuotaSnapshot, QuotaStatus},
+    quota::{
+        CapabilityProbe, ProviderKind, ProviderOutput, QuotaService, QuotaSnapshot, QuotaStatus,
+    },
     settings::{AppSettings, RefreshMode},
 };
 
@@ -162,14 +164,22 @@ impl AppState {
                 (0..=300).contains(&remaining)
             })
             .unwrap_or(false);
-        if reset_soon || self.activity_detector.is_recently_active(Duration::from_secs(90)) {
+        if reset_soon
+            || self
+                .activity_detector
+                .is_recently_active(Duration::from_secs(90))
+        {
             return 10;
         }
         let windows_visible = ["floating", "dashboard"]
             .into_iter()
             .filter_map(|label| self.app.get_webview_window(label))
             .any(|window| window.is_visible().unwrap_or(false));
-        if windows_visible { 30 } else { 60 }
+        if windows_visible {
+            30
+        } else {
+            60
+        }
     }
 
     pub async fn refresh_quota(&self, desired_interval_seconds: u64) -> AppResult<RefreshResult> {
@@ -203,31 +213,40 @@ impl AppState {
             schedule.last_attempt_at = Some(now);
         }
         let mock_mode = self.settings()?.mock_mode;
-        let fetched = self.quota_service.fetch(mock_mode).await.unwrap_or_else(|_| ProviderOutput {
-            provider: ProviderKind::AppServer,
-            capabilities: CapabilityProbe::default(),
-            snapshot: QuotaSnapshot::unavailable(
-                ProviderKind::AppServer,
-                "Codex app-server 刷新失败；未读取认证文件或私有接口。",
-            ),
-        });
+        let fetched = self
+            .quota_service
+            .fetch(mock_mode)
+            .await
+            .unwrap_or_else(|_| ProviderOutput {
+                provider: ProviderKind::AppServer,
+                capabilities: CapabilityProbe::default(),
+                snapshot: QuotaSnapshot::unavailable(
+                    ProviderKind::AppServer,
+                    "Codex app-server 刷新失败；未读取认证文件或私有接口。",
+                ),
+            });
         let successful = fetched.snapshot.status == QuotaStatus::Available;
         let output = if successful {
             if fetched.provider != ProviderKind::Mock {
                 self.database.insert_quota_snapshot(&fetched.snapshot)?;
                 let notification_settings = self.settings()?.notifications;
-                let _ = self.notifications.evaluate(&self.app, &notification_settings, &fetched.snapshot);
+                let _ = self.notifications.evaluate(
+                    &self.app,
+                    &notification_settings,
+                    &fetched.snapshot,
+                );
             }
             fetched
         } else if fetched.snapshot.status == QuotaStatus::Unavailable {
             if let Some(mut stale) = self.database.latest_quota_snapshot()? {
-            stale.status = QuotaStatus::Stale;
-            stale.message = Some("实时刷新失败；显示上次成功数据，时间以 lastUpdated 为准。".into());
-            ProviderOutput {
-                provider: fetched.provider,
-                capabilities: fetched.capabilities,
-                snapshot: stale,
-            }
+                stale.status = QuotaStatus::Stale;
+                stale.message =
+                    Some("实时刷新失败；显示上次成功数据，时间以 lastUpdated 为准。".into());
+                ProviderOutput {
+                    provider: fetched.provider,
+                    capabilities: fetched.capabilities,
+                    snapshot: stale,
+                }
             } else {
                 fetched
             }
@@ -236,7 +255,10 @@ impl AppState {
             // visible and must not inherit numeric values from a prior account.
             fetched
         };
-        *self.latest_quota.write().map_err(|_| AppError::StatePoisoned)? = output.clone();
+        *self
+            .latest_quota
+            .write()
+            .map_err(|_| AppError::StatePoisoned)? = output.clone();
         {
             let mut schedule = self
                 .refresh_schedule
@@ -245,8 +267,8 @@ impl AppState {
             if successful {
                 schedule.consecutive_failures = 0;
                 schedule.last_success_at = Some(now);
-                schedule.next_refresh_at =
-                    now + chrono::Duration::seconds(desired_interval_seconds.clamp(10, 3600) as i64);
+                schedule.next_refresh_at = now
+                    + chrono::Duration::seconds(desired_interval_seconds.clamp(10, 3600) as i64);
             } else {
                 let index = usize::from(schedule.consecutive_failures)
                     .min(BACKOFF_SECONDS.len().saturating_sub(1));

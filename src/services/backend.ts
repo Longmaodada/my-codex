@@ -24,6 +24,7 @@ const emptyUsage = (): UsageSummary => ({
   cacheHitRatio: 0,
   daily: [],
   projects: [],
+  tasks: [],
   skills: [],
   models: [],
 });

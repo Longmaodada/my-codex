@@ -15,10 +15,7 @@ pub struct TrayMenuState {
 }
 
 pub fn setup(app: &App) -> AppResult<()> {
-    let always_on_top_enabled = app
-        .state::<AppState>()
-        .settings()?
-        .always_on_top;
+    let always_on_top_enabled = app.state::<AppState>().settings()?.always_on_top;
     let floating = MenuItem::with_id(app, "floating", "显示/隐藏悬浮窗", true, None::<&str>)
         .map_err(|error| AppError::Other(error.to_string()))?;
     let dashboard = MenuItem::with_id(app, "dashboard", "打开主面板", true, None::<&str>)
@@ -38,8 +35,8 @@ pub fn setup(app: &App) -> AppResult<()> {
         .map_err(|error| AppError::Other(error.to_string()))?;
     let about = MenuItem::with_id(app, "about", "关于", true, None::<&str>)
         .map_err(|error| AppError::Other(error.to_string()))?;
-    let separator = PredefinedMenuItem::separator(app)
-        .map_err(|error| AppError::Other(error.to_string()))?;
+    let separator =
+        PredefinedMenuItem::separator(app).map_err(|error| AppError::Other(error.to_string()))?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
         .map_err(|error| AppError::Other(error.to_string()))?;
     let menu = Menu::with_items(
@@ -61,8 +58,12 @@ pub fn setup(app: &App) -> AppResult<()> {
         .show_menu_on_left_click(false)
         .tooltip("My Codex · 额度等待刷新")
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "floating" => { let _ = window::toggle(app, WindowTarget::Floating); }
-            "dashboard" => { let _ = window::show(app, WindowTarget::Dashboard); }
+            "floating" => {
+                let _ = window::toggle(app, WindowTarget::Floating);
+            }
+            "dashboard" => {
+                let _ = window::show(app, WindowTarget::Dashboard);
+            }
             "refresh" => {
                 let handle = app.clone();
                 tauri::async_runtime::spawn(async move {

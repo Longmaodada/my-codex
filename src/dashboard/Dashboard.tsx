@@ -12,6 +12,7 @@ import type { ProjectUsage } from "../types/analytics";
 import { providerStatusLabel } from "../utils/providerStatus";
 import { resolveTheme } from "../utils/theme";
 import { SummaryCards } from "./components/SummaryCards";
+import { TaskLedger } from "./components/TaskLedger";
 import { CachePage } from "./pages/CachePage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -21,7 +22,7 @@ import { SkillsPage } from "./pages/SkillsPage";
 
 type Page = NavigationTarget;
 
-const tabs: Array<[Page, string]> = [["overview", "今日任务"], ["month", "月度趋势"], ["week", "周趋势"], ["skills", "Skill"], ["projects", "项目"], ["models", "模型"], ["cache", "缓存"]];
+const tabs: Array<[Page, string]> = [["overview", "今日任务"], ["month", "月度趋势"], ["week", "逐任务记录"], ["skills", "Skill"], ["projects", "项目"], ["models", "模型"], ["cache", "缓存"]];
 
 export function Dashboard() {
   const { snapshot, refreshing, refresh, lastRefreshedAt, updateSettings, navigationTarget } = useAppStore();
@@ -79,7 +80,7 @@ export function Dashboard() {
           <motion.section className="page-content" key={page + (selectedProject?.id ?? "")} initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
             {page === "overview" && <OverviewPage snapshot={snapshot} onProject={openProject} />}
             {page === "month" && <OverviewPage snapshot={snapshot} onProject={openProject} defaultRange="30D" />}
-            {page === "week" && <OverviewPage snapshot={snapshot} onProject={openProject} defaultRange="7D" />}
+            {page === "week" && <TaskLedger tasks={snapshot.usage.tasks} />}
             {page === "projects" && <ProjectsPage snapshot={snapshot} selected={selectedProject} onSelect={setSelectedProject} onBack={() => setSelectedProject(null)} />}
             {page === "skills" && <SkillsPage skills={snapshot.usage.skills} />}
             {page === "models" && <ModelsPage models={snapshot.usage.models} />}

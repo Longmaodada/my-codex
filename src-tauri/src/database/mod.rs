@@ -19,6 +19,8 @@ use crate::{
 
 use migrations::MIGRATIONS;
 
+pub const SESSION_PARSER_VERSION: i64 = 3;
+
 pub struct Database {
     connection: Mutex<Connection>,
 }
@@ -163,8 +165,9 @@ impl Database {
         let current: Option<i64> = connection
             .query_row(
                 "SELECT 1 FROM ingest_files
-                 WHERE source_hash = ?1 AND byte_size = ?2 AND modified_ms = ?3",
-                params![source_hash, byte_size, modified_ms],
+                 WHERE source_hash = ?1 AND byte_size = ?2 AND modified_ms = ?3
+                   AND parser_version = ?4",
+                params![source_hash, byte_size, modified_ms, SESSION_PARSER_VERSION],
                 |row| row.get(0),
             )
             .optional()?;
@@ -245,17 +248,19 @@ impl Database {
         }
 
         transaction.execute(
-            "INSERT INTO ingest_files(source_hash, byte_size, modified_ms, session_id, processed_at)
-             VALUES(?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO ingest_files(
+                 source_hash, byte_size, modified_ms, session_id, processed_at, parser_version)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(source_hash) DO UPDATE SET byte_size = excluded.byte_size,
              modified_ms = excluded.modified_ms, session_id = excluded.session_id,
-             processed_at = excluded.processed_at",
+             processed_at = excluded.processed_at, parser_version = excluded.parser_version",
             params![
                 source_hash,
                 byte_size,
                 modified_ms,
                 session.session_id,
                 Utc::now().to_rfc3339(),
+                SESSION_PARSER_VERSION,
             ],
         )?;
 
@@ -275,8 +280,7 @@ impl Database {
     }
 
     pub fn prune(&self, retention_days: u16) -> AppResult<usize> {
-        let cutoff = (Utc::now() - chrono::Duration::days(i64::from(retention_days)))
-            .to_rfc3339();
+        let cutoff = (Utc::now() - chrono::Duration::days(i64::from(retention_days))).to_rfc3339();
         let deleted = self.connection()?.execute(
             "DELETE FROM session_usage WHERE started_at < ?1",
             params![cutoff],

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     analytics::{
-        DataSource, DashboardAnalytics, ModelRankItem, ProjectRankItem, SkillRankItem,
+        DashboardAnalytics, DataSource, ModelRankItem, ProjectRankItem, SkillRankItem, TaskUsage,
         TokenBreakdown as InternalTokens, TrendPoint,
     },
     app_state::RefreshStatus,
@@ -122,7 +122,13 @@ impl WireQuotaSnapshot {
 
 fn map_quota_window(id: &'static str, window: &QuotaWindow) -> WireQuotaWindow {
     let label = window.window_duration_minutes.map_or_else(
-        || if id == "primary" { "主要额度".into() } else { "次要额度".into() },
+        || {
+            if id == "primary" {
+                "主要额度".into()
+            } else {
+                "次要额度".into()
+            }
+        },
         |minutes| match minutes {
             0..=59 => format!("{minutes} 分钟额度"),
             60..=1439 if minutes % 60 == 0 => format!("{} 小时额度", minutes / 60),
@@ -176,7 +182,8 @@ pub struct WireSkillUsage {
     pub tokens: WireTokenBreakdown,
     pub projects: Vec<String>,
     pub last_used_at: String,
-    pub confidence: f64,
+    pub cache_hit_ratio: Option<f64>,
+    pub confidence: Option<f64>,
     pub source: MetricSource,
 }
 
@@ -194,6 +201,29 @@ pub struct WireModelUsage {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WireTaskSkill {
+    pub name: String,
+    pub invocations: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WireTaskUsage {
+    pub id: String,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub project_name: String,
+    pub model: String,
+    #[serde(flatten)]
+    pub tokens: WireTokenBreakdown,
+    pub requests: i64,
+    pub active_seconds: i64,
+    pub skills: Vec<WireTaskSkill>,
+    pub source: MetricSource,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WireUsageSummary {
     pub today: WireTokenBreakdown,
     pub week: WireTokenBreakdown,
@@ -205,6 +235,7 @@ pub struct WireUsageSummary {
     pub cache_hit_ratio: f64,
     pub daily: Vec<WireDailyUsage>,
     pub projects: Vec<WireProjectUsage>,
+    pub tasks: Vec<WireTaskUsage>,
     pub skills: Vec<WireSkillUsage>,
     pub models: Vec<WireModelUsage>,
 }
@@ -220,11 +251,11 @@ impl From<DashboardAnalytics> for WireUsageSummary {
             lifetime: value.all_time.tokens.into(),
             requests_today,
             sessions_today,
-            // Codex logs do not expose a stable standalone task counter.
-            tasks_today: 0,
+            tasks_today: sessions_today,
             cache_hit_ratio: value.cache.cache_hit_ratio,
             daily: fill_last_ninety_days(value.cache.trend),
             projects: value.projects.into_iter().map(map_project).collect(),
+            tasks: value.tasks.into_iter().map(map_task).collect(),
             skills: value.skills.into_iter().map(map_skill).collect(),
             models: value.models.into_iter().map(map_model).collect(),
         }
@@ -245,14 +276,20 @@ impl WireUsageSummary {
         // 7-day card, and 8.6B lifetime card never contradict one another.
         let older_base = 1_800_000_000_i64 / 83;
         let older_remainder = 1_800_000_000_i64 % 83;
-        let recent = [410_000_000_i64, 520_000_000, 610_000_000, 690_000_000,
-            760_000_000, 870_000_000, 2_940_000_000];
+        let recent = [
+            410_000_000_i64,
+            520_000_000,
+            610_000_000,
+            690_000_000,
+            760_000_000,
+            870_000_000,
+            2_940_000_000,
+        ];
         let daily = (0_i64..90)
             .rev()
             .map(|offset| {
-                let date = (chrono::Local::now().date_naive()
-                    - chrono::Duration::days(offset))
-                .to_string();
+                let date = (chrono::Local::now().date_naive() - chrono::Duration::days(offset))
+                    .to_string();
                 let day_index = 89 - offset;
                 let total = if day_index < 83 {
                     older_base + i64::from(day_index < older_remainder)
@@ -286,22 +323,50 @@ impl WireUsageSummary {
             last_active_at: Utc::now().to_rfc3339(),
             source: MetricSource::Mock,
         };
-        let skill = |name: &str, invocations: i64, total: i64, project: &str| WireSkillUsage {
-            name: name.into(),
-            invocations,
-            tokens: split(total),
-            projects: vec![project.into()],
-            last_used_at: Utc::now().to_rfc3339(),
-            confidence: 1.0,
-            source: MetricSource::Mock,
+        let skill = |name: &str,
+                     invocations: i64,
+                     total: i64,
+                     project: &str,
+                     cache_hit_ratio: f64| {
+            let mut tokens = split(total);
+            tokens.cached = tokens.input.saturating_mul(cache_hit_ratio.round() as i64) / 100;
+            WireSkillUsage {
+                name: name.into(),
+                invocations,
+                tokens,
+                projects: vec![project.into()],
+                last_used_at: Utc::now().to_rfc3339(),
+                cache_hit_ratio: Some(cache_hit_ratio),
+                confidence: Some(1.0),
+                source: MetricSource::Mock,
+            }
         };
-        let model = |name: &str, total: i64, requests: i64, projects: i64, cache: f64| {
-            WireModelUsage {
+        let model =
+            |name: &str, total: i64, requests: i64, projects: i64, cache: f64| WireModelUsage {
                 name: name.into(),
                 tokens: split(total),
                 requests,
                 projects,
                 cache_hit_ratio: cache,
+                source: MetricSource::Mock,
+            };
+        let task = |id: &str, project: &str, model: &str, total: i64, skill_names: &[&str]| {
+            WireTaskUsage {
+                id: id.into(),
+                started_at: Some(Utc::now()),
+                ended_at: Some(Utc::now()),
+                project_name: project.into(),
+                model: model.into(),
+                tokens: split(total),
+                requests: 1,
+                active_seconds: 18 * 60,
+                skills: skill_names
+                    .iter()
+                    .map(|name| WireTaskSkill {
+                        name: (*name).into(),
+                        invocations: 1,
+                    })
+                    .collect(),
                 source: MetricSource::Mock,
             }
         };
@@ -312,19 +377,87 @@ impl WireUsageSummary {
             lifetime: split(8_600_000_000),
             requests_today: 184,
             sessions_today: 22,
-            tasks_today: 37,
+            tasks_today: 6,
             cache_hit_ratio: 80.0,
             daily,
             projects: vec![
-                project("mock-project-config", "Code项目配置生成工具", "D:\\Projects\\code-project-config", 2_580_000_000, 49, 184, 20_484),
-                project("mock-skills-2", "hatch-pet-users-zhitong-codex-skills-2", "D:\\Projects\\hatch-pet-users-zhitong-codex-skills-2", 2_400_000_000, 53, 167, 15_840),
-                project("mock-skills", "hatch-pet-users-zhitong-codex-skills", "D:\\Projects\\hatch-pet-users-zhitong-codex-skills", 563_200_000, 34, 96, 11_460),
+                project(
+                    "mock-project-config",
+                    "Code项目配置生成工具",
+                    "D:\\Projects\\code-project-config",
+                    2_580_000_000,
+                    49,
+                    184,
+                    20_484,
+                ),
+                project(
+                    "mock-skills-2",
+                    "hatch-pet-users-zhitong-codex-skills-2",
+                    "D:\\Projects\\hatch-pet-users-zhitong-codex-skills-2",
+                    2_400_000_000,
+                    53,
+                    167,
+                    15_840,
+                ),
+                project(
+                    "mock-skills",
+                    "hatch-pet-users-zhitong-codex-skills",
+                    "D:\\Projects\\hatch-pet-users-zhitong-codex-skills",
+                    563_200_000,
+                    34,
+                    96,
+                    11_460,
+                ),
+            ],
+            tasks: vec![
+                task(
+                    "task-001",
+                    "Code项目配置生成工具",
+                    "GPT-5.6",
+                    420_000_000,
+                    &["frontend-design", "browser"],
+                ),
+                task(
+                    "task-002",
+                    "hatch-pet-users-zhitong-codex-skills-2",
+                    "GPT-5.6",
+                    360_000_000,
+                    &["github"],
+                ),
+                task(
+                    "task-003",
+                    "Code项目配置生成工具",
+                    "GPT-5.6 Sol",
+                    310_000_000,
+                    &["frontend-design", "impeccable"],
+                ),
+                task(
+                    "task-004",
+                    "内网代理池维护",
+                    "GPT-5.5",
+                    260_000_000,
+                    &["security-analysis"],
+                ),
+                task("task-005", "ASR桌面系统", "GPT-5.6", 220_000_000, &["pdf"]),
+                task(
+                    "task-006",
+                    "Code项目配置生成工具",
+                    "GPT-5.6",
+                    190_000_000,
+                    &["browser", "visualize"],
+                ),
             ],
             skills: vec![
-                skill("frontend-design", 42, 1_840_000_000, "Code项目配置生成工具"),
-                skill("github", 31, 1_220_000_000, "hatch-pet-users-zhitong-codex-skills-2"),
-                skill("browser", 24, 860_000_000, "Code项目配置生成工具"),
-                skill("security-analysis", 18, 620_000_000, "内网代理池维护"),
+                skill("frontend-design", 42, 1_840_000_000, "Code项目配置生成工具", 78.0),
+                skill(
+                    "github",
+                    31,
+                    1_220_000_000,
+                    "hatch-pet-users-zhitong-codex-skills-2",
+                    64.0,
+                ),
+                skill("browser", 24, 860_000_000, "Code项目配置生成工具", 51.0),
+                skill("security-analysis", 18, 620_000_000, "内网代理池维护", 39.0),
             ],
             models: vec![
                 model("GPT-5.6", 3_180_000_000, 86, 5, 82.0),
@@ -354,9 +487,8 @@ fn fill_last_ninety_days(values: Vec<TrendPoint>) -> Vec<WireDailyUsage> {
     (0_i64..90)
         .rev()
         .map(|offset| {
-            let date = (chrono::Local::now().date_naive()
-                - chrono::Duration::days(offset))
-            .to_string();
+            let date =
+                (chrono::Local::now().date_naive() - chrono::Duration::days(offset)).to_string();
             values.remove(&date).unwrap_or_else(|| WireDailyUsage {
                 date,
                 tokens: InternalTokens::default().into(),
@@ -396,8 +528,8 @@ fn map_skill(value: SkillRankItem) -> WireSkillUsage {
             .last_used_at
             .map(|value| value.to_rfc3339())
             .unwrap_or_default(),
-        // Structured skill events are strong local correlation, not billing attribution.
-        confidence: 0.85,
+        cache_hit_ratio: value.cache_hit_ratio,
+        confidence: value.attribution_confidence,
         source: MetricSource::from_internal(value.source, None),
     }
 }
@@ -409,6 +541,28 @@ fn map_model(value: ModelRankItem) -> WireModelUsage {
         requests: value.requests,
         projects: 0,
         cache_hit_ratio: value.cache_hit_ratio,
+        source: MetricSource::from_internal(value.source, None),
+    }
+}
+
+fn map_task(value: TaskUsage) -> WireTaskUsage {
+    WireTaskUsage {
+        id: value.session_id,
+        started_at: value.started_at,
+        ended_at: value.ended_at,
+        project_name: value.project_name.unwrap_or_else(|| "未命名项目".into()),
+        model: value.model.unwrap_or_else(|| "模型未知".into()),
+        tokens: value.tokens.into(),
+        requests: value.requests,
+        active_seconds: value.active_seconds,
+        skills: value
+            .skills
+            .into_iter()
+            .map(|skill| WireTaskSkill {
+                name: skill.skill_name,
+                invocations: skill.invocations,
+            })
+            .collect(),
         source: MetricSource::from_internal(value.source, None),
     }
 }

@@ -136,7 +136,9 @@ impl AppSettings {
         self.notifications
             .remaining_thresholds
             .retain(|value| (1..=100).contains(value));
-        self.notifications.remaining_thresholds.sort_unstable_by(|a, b| b.cmp(a));
+        self.notifications
+            .remaining_thresholds
+            .sort_unstable_by(|a, b| b.cmp(a));
         self.notifications.remaining_thresholds.dedup();
         Ok(self)
     }

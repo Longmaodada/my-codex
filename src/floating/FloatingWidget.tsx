@@ -15,12 +15,17 @@ import { formatDateTime, formatTokens, percentage } from "../utils/format";
 
 export function FloatingWidget() {
   const { snapshot, refreshing, refresh, updateSettings } = useAppStore();
-  const [compact, setCompact] = useState(() => snapshot?.settings.capsuleMode ?? false);
+  const [compact, setCompact] = useState(() => {
+    if (snapshot?.settings.lockPosition) return false;
+    return snapshot?.settings.capsuleMode ?? false;
+  });
   const compactTarget = useRef(compact);
+  const lockPositionRef = useRef(snapshot?.settings.lockPosition ?? false);
   const quota = snapshot?.quota;
   const usage = snapshot?.usage;
   const settings = snapshot?.settings;
   const capsuleMode = settings?.capsuleMode ?? false;
+  const lockPosition = settings?.lockPosition ?? false;
   const selectedWindow = quota?.windows.find((item) => item.id === settings?.primaryQuotaWindow) ?? quota?.windows[0];
   const remainingPercent = selectedWindow?.remainingPercent ?? null;
   const remainingLabel = remainingPercent === null ? "—" : `${Math.round(remainingPercent)}%`;
@@ -32,13 +37,28 @@ export function FloatingWidget() {
   const total90 = useMemo(() => usage?.daily.reduce((sum, day) => sum + day.total, 0) ?? 0, [usage?.daily]);
 
   useEffect(() => {
+    const wasLocked = lockPositionRef.current;
+    lockPositionRef.current = lockPosition;
+
+    if (lockPosition) {
+      compactTarget.current = false;
+      setCompact(false);
+      void setWidgetCompact(false);
+      return;
+    }
+
+    // Unlocking keeps the expanded My Codex surface until the pointer leaves it.
+    // This avoids an immediate jump back to the capsule while the unlock button
+    // is still under the pointer.
+    if (wasLocked) return;
+
     compactTarget.current = capsuleMode;
     setCompact(capsuleMode);
     void setWidgetCompact(capsuleMode);
-  }, [capsuleMode]);
+  }, [capsuleMode, lockPosition]);
 
   const requestCompact = (next: boolean) => {
-    if (!capsuleMode || compactTarget.current === next) return;
+    if (!capsuleMode || lockPosition || compactTarget.current === next) return;
     compactTarget.current = next;
     setCompact(next);
     void setWidgetCompact(next).then(() => {
@@ -94,16 +114,16 @@ export function FloatingWidget() {
                 <div className="section-eyebrow"><span>今日 Token</span><SourceBadge source={settings.mockMode ? "mock" : "local"} compact /></div>
                 <strong>{formatTokens(usage.today.total)}</strong>
                 <MetricLegend data={usage.today} compact />
-                {todayShare !== null && <div className="thin-progress"><i style={{ width: `${todayShare}%` }} /></div>}
+                {todayShare !== null && <div className="thin-progress"><i style={{ transform: `scaleX(${todayShare / 100})` }} /></div>}
               </div>
             </GlassCard>
 
             <GlassCard className="widget-targets">
               <div className="card-heading"><span>Token 小目标</span><small>本地统计</small></div>
               <div className="target-row"><span>今日</span><strong>{formatTokens(usage.today.total)}{todayGoal ? ` / ${formatTokens(todayGoal)}` : ""}</strong><em>{todayShare === null ? "—" : `${todayShare}%`}</em></div>
-              {todayShare !== null && <div className="thin-progress"><i style={{ width: `${todayShare}%` }} /></div>}
+              {todayShare !== null && <div className="thin-progress"><i style={{ transform: `scaleX(${todayShare / 100})` }} /></div>}
               <div className="target-row"><span>本周</span><strong>{formatTokens(usage.week.total)}{weekGoal ? ` / ${formatTokens(weekGoal)}` : ""}</strong><em>{weekShare === null ? "—" : `${weekShare}%`}</em></div>
-              {weekShare !== null && <div className="thin-progress muted"><i style={{ width: `${weekShare}%` }} /></div>}
+              {weekShare !== null && <div className="thin-progress muted"><i style={{ transform: `scaleX(${weekShare / 100})` }} /></div>}
               <div className="reset-row">
                 <span><small>剩余额度 · 下一次重置</small><strong>{remainingLabel} · {formatDateTime(selectedWindow?.resetAt ?? null)}</strong></span>
                 <em>{countdown}</em>

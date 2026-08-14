@@ -3,8 +3,7 @@ use async_trait::async_trait;
 use crate::error::AppResult;
 
 use super::{
-    CapabilityProbe, CapabilityState, ProviderKind, ProviderOutput, QuotaProvider,
-    QuotaSnapshot,
+    CapabilityProbe, CapabilityState, ProviderKind, ProviderOutput, QuotaProvider, QuotaSnapshot,
 };
 
 pub struct UnavailableQuotaProvider;

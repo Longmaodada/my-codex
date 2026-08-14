@@ -46,4 +46,3 @@ pub struct ProviderOutput {
 pub trait QuotaProvider: Send + Sync {
     async fn fetch(&self) -> AppResult<ProviderOutput>;
 }
-

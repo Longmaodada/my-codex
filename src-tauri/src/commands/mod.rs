@@ -119,9 +119,7 @@ pub async fn sync_local_usage(state: State<'_, AppState>) -> CommandResult<Inges
 }
 
 #[tauri::command]
-pub fn get_dashboard_analytics(
-    state: State<'_, AppState>,
-) -> CommandResult<DashboardAnalytics> {
+pub fn get_dashboard_analytics(state: State<'_, AppState>) -> CommandResult<DashboardAnalytics> {
     state
         .database
         .dashboard_analytics()
@@ -133,7 +131,10 @@ pub fn get_usage_totals(
     state: State<'_, AppState>,
     range: UsageRange,
 ) -> CommandResult<UsageTotals> {
-    state.database.usage_totals(range).map_err(CommandError::from)
+    state
+        .database
+        .usage_totals(range)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -141,7 +142,10 @@ pub fn get_usage_trend(
     state: State<'_, AppState>,
     range: UsageRange,
 ) -> CommandResult<Vec<TrendPoint>> {
-    state.database.usage_trend(range).map_err(CommandError::from)
+    state
+        .database
+        .usage_trend(range)
+        .map_err(CommandError::from)
 }
 
 #[tauri::command]
@@ -215,10 +219,12 @@ pub fn save_settings(
     settings: WireSettings,
 ) -> CommandResult<WireSettings> {
     let previous = state.settings().map_err(CommandError::from)?;
-    let mut settings = settings.apply_to(previous.clone()).map_err(|message| CommandError {
-        code: "invalid_setting",
-        message,
-    })?;
+    let mut settings = settings
+        .apply_to(previous.clone())
+        .map_err(|message| CommandError {
+            code: "invalid_setting",
+            message,
+        })?;
     settings = settings.validate().map_err(CommandError::from)?;
     if let Ok((x, y)) = window::current_widget_position(&app) {
         settings.widget_x = Some(x);
@@ -240,8 +246,14 @@ pub fn save_settings(
         .update_settings(settings)
         .map_err(CommandError::from)?;
     window::apply_settings(&app, &internal_saved).map_err(CommandError::from)?;
-    if internal_saved.capsule_mode != previous.capsule_mode {
-        window::set_compact(&app, internal_saved.capsule_mode).map_err(CommandError::from)?;
+    if internal_saved.capsule_mode != previous.capsule_mode
+        || internal_saved.lock_widget_position != previous.lock_widget_position
+    {
+        window::set_compact(
+            &app,
+            internal_saved.capsule_mode && !internal_saved.lock_widget_position,
+        )
+        .map_err(CommandError::from)?;
     }
     let saved = WireSettings::from(internal_saved);
     tray::update_always_on_top_check(&app, saved.always_on_top);

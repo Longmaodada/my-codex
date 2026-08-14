@@ -39,7 +39,10 @@ impl NotificationController {
         else {
             return Ok(());
         };
-        let mut sent = self.sent_thresholds.lock().map_err(|_| AppError::StatePoisoned)?;
+        let mut sent = self
+            .sent_thresholds
+            .lock()
+            .map_err(|_| AppError::StatePoisoned)?;
         sent.retain(|threshold| remaining <= f64::from(*threshold));
         let threshold = settings
             .remaining_thresholds
@@ -71,4 +74,3 @@ impl NotificationController {
             .map_err(|error| AppError::Notification(error.to_string()))
     }
 }
-

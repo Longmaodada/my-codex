@@ -5,8 +5,8 @@ use super::{cutoff_string, parse_datetime, Database};
 use crate::{
     analytics::{
         ratio, CacheAnalytics, DashboardAnalytics, DataSource, HeatmapDay, ModelRankItem,
-        ProjectDetail, ProjectRankItem, SkillRankItem, TokenBreakdown, TrendPoint, UsageRange,
-        UsageTotals,
+        ProjectDetail, ProjectRankItem, SkillRankItem, TaskSkillItem, TaskUsage, TokenBreakdown,
+        TrendPoint, UsageRange, UsageTotals,
     },
     error::{AppError, AppResult},
 };
@@ -160,6 +160,64 @@ impl Database {
         self.skills_for_project(range, None, limit)
     }
 
+    pub fn tasks(&self, range: UsageRange, limit: u16) -> AppResult<Vec<TaskUsage>> {
+        let cutoff = cutoff_string(range);
+        let connection = self.connection()?;
+        let mut statement = connection.prepare(
+            "SELECT session_id, started_at, ended_at, project_name, model,
+                    input_tokens, output_tokens, cached_input_tokens, reasoning_tokens,
+                    total_tokens, requests, active_seconds
+             FROM session_usage
+             WHERE (?1 IS NULL OR date(started_at, 'localtime') >= ?1)
+             ORDER BY started_at DESC LIMIT ?2",
+        )?;
+        let rows = statement.query_map(params![cutoff, i64::from(limit.clamp(1, 500))], |row| {
+            let input: i64 = row.get(5)?;
+            let cached: i64 = row.get(7)?;
+            Ok(TaskUsage {
+                session_id: row.get(0)?,
+                started_at: parse_datetime(Some(row.get(1)?)),
+                ended_at: parse_datetime(row.get(2)?),
+                project_name: row.get(3)?,
+                model: row.get(4)?,
+                tokens: TokenBreakdown {
+                    input_tokens: input,
+                    output_tokens: row.get(6)?,
+                    cached_input_tokens: cached,
+                    reasoning_tokens: row.get(8)?,
+                    total_tokens: row.get(9)?,
+                }
+                .normalize(),
+                requests: row.get(10)?,
+                active_seconds: row.get(11)?,
+                skills: Vec::new(),
+                source: DataSource::Local,
+            })
+        })?;
+        let mut tasks = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AppError::from)?;
+        drop(statement);
+
+        for task in &mut tasks {
+            let mut skill_statement = connection.prepare(
+                "SELECT skill_name, invocations FROM session_skills
+                 WHERE session_id = ?1 ORDER BY last_used_at DESC, skill_name ASC",
+            )?;
+            let skills = skill_statement
+                .query_map(params![task.session_id], |row| {
+                    Ok(TaskSkillItem {
+                        skill_name: row.get(0)?,
+                        invocations: row.get(1)?,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(AppError::from)?;
+            task.skills = skills;
+        }
+        Ok(tasks)
+    }
+
     fn skills_for_project(
         &self,
         range: UsageRange,
@@ -169,35 +227,66 @@ impl Database {
         let cutoff = cutoff_string(range);
         let connection = self.connection()?;
         let total: i64 = connection.query_row(
-            "SELECT COALESCE(SUM(total_tokens), 0) FROM skill_usage
-             WHERE (?1 IS NULL OR date >= ?1) AND (?2 IS NULL OR project_id = ?2)",
+            "SELECT COALESCE(SUM(s.total_tokens), 0)
+             FROM session_usage s
+             WHERE EXISTS (
+                 SELECT 1 FROM session_skills sk WHERE sk.session_id = s.session_id
+             )
+               AND (?1 IS NULL OR date(s.started_at, 'localtime') >= ?1)
+               AND (?2 IS NULL OR s.project_id = ?2)",
             params![cutoff, project_id],
             |row| row.get(0),
         )?;
         let mut statement = connection.prepare(
-            "SELECT skill_name, SUM(invocations), SUM(input_tokens), SUM(output_tokens),
-                    SUM(cached_input_tokens), SUM(reasoning_tokens), SUM(total_tokens),
-                    MAX(last_used_at),
-                    CASE WHEN COUNT(DISTINCT project_id) = 1 THEN MAX(NULLIF(project_id, '')) END,
-                    CASE WHEN COUNT(DISTINCT project_id) = 1 THEN MAX(project_name) END
-             FROM skill_usage
-             WHERE (?1 IS NULL OR date >= ?1) AND (?2 IS NULL OR project_id = ?2)
-             GROUP BY skill_name ORDER BY SUM(total_tokens) DESC, SUM(invocations) DESC LIMIT ?3",
+            "WITH session_weights AS (
+                 SELECT session_id, SUM(invocations) AS total_invocations
+                 FROM session_skills
+                 GROUP BY session_id
+             )
+             SELECT sk.skill_name,
+                    SUM(sk.invocations),
+                    SUM(CAST(ROUND(CAST(s.input_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)),
+                    SUM(CAST(ROUND(CAST(s.output_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)),
+                    SUM(CAST(ROUND(CAST(s.cached_input_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)),
+                    SUM(CAST(ROUND(CAST(s.reasoning_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)),
+                    SUM(CAST(ROUND(CAST(s.total_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)),
+                    MAX(COALESCE(sk.last_used_at, s.ended_at, s.started_at)),
+                    CASE WHEN COUNT(DISTINCT COALESCE(s.project_id, '')) = 1 THEN MAX(NULLIF(s.project_id, '')) END,
+                    CASE WHEN COUNT(DISTINCT COALESCE(s.project_id, '')) = 1 THEN MAX(s.project_name) END,
+                    CASE WHEN SUM(sk.invocations) > 0 THEN
+                        SUM(CAST(sk.invocations AS REAL) * sk.invocations / sw.total_invocations) / SUM(sk.invocations)
+                    END
+             FROM session_skills sk
+             JOIN session_usage s ON s.session_id = sk.session_id
+             JOIN session_weights sw ON sw.session_id = sk.session_id
+             WHERE sw.total_invocations > 0
+               AND (?1 IS NULL OR date(s.started_at, 'localtime') >= ?1)
+               AND (?2 IS NULL OR s.project_id = ?2)
+             GROUP BY sk.skill_name
+             ORDER BY SUM(CAST(ROUND(CAST(s.total_tokens AS REAL) * sk.invocations / sw.total_invocations) AS INTEGER)) DESC,
+                      SUM(sk.invocations) DESC,
+                      sk.skill_name ASC
+             LIMIT ?3",
         )?;
         let rows = statement.query_map(
             params![cutoff, project_id, i64::from(limit.clamp(1, 500))],
             |row| {
                 let invocations: i64 = row.get(1)?;
+                let input: i64 = row.get(2)?;
+                let cached: i64 = row.get(4)?;
                 let item_total: i64 = row.get(6)?;
+                let attribution_confidence: Option<f64> = row
+                    .get::<_, Option<f64>>(10)?
+                    .map(|value| value.clamp(0.0, 1.0));
                 Ok(SkillRankItem {
                     skill_name: row.get(0)?,
                     project_id: row.get(8)?,
                     project_name: row.get(9)?,
                     invocations,
                     tokens: TokenBreakdown {
-                        input_tokens: row.get(2)?,
+                        input_tokens: input,
                         output_tokens: row.get(3)?,
-                        cached_input_tokens: row.get(4)?,
+                        cached_input_tokens: cached,
                         reasoning_tokens: row.get(5)?,
                         total_tokens: item_total,
                     }
@@ -208,8 +297,13 @@ impl Database {
                     } else {
                         0
                     },
+                    cache_hit_ratio: (input > 0).then(|| ratio(cached, input)),
+                    attribution_confidence,
                     last_used_at: parse_datetime(row.get(7)?),
-                    source: DataSource::Local,
+                    // Token fields are allocated from the containing local
+                    // session by recorded Skill invocation weight. They are
+                    // useful local estimates, not tool-level billing data.
+                    source: DataSource::Estimated,
                 })
             },
         )?;
@@ -262,7 +356,11 @@ impl Database {
                     requests,
                     sessions: row.get(7)?,
                     share: ratio(item_total, total),
-                    average_tokens: if requests > 0 { item_total / requests } else { 0 },
+                    average_tokens: if requests > 0 {
+                        item_total / requests
+                    } else {
+                        0
+                    },
                     cache_hit_ratio: ratio(cached, input),
                     last_used_at: parse_datetime(row.get(8)?),
                     source: DataSource::Local,
@@ -361,9 +459,72 @@ impl Database {
             all_time: self.usage_totals(UsageRange::All)?,
             heatmap: self.heatmap(90)?,
             projects: self.projects(UsageRange::ThirtyDays, 20)?,
+            tasks: self.tasks(UsageRange::Today, 100)?,
             skills: self.skills(UsageRange::ThirtyDays, 20)?,
             models: self.models(UsageRange::ThirtyDays, 20)?,
             cache: self.cache_analytics(UsageRange::NinetyDays)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+
+    use super::Database;
+    use crate::analytics::{SessionAggregate, SessionSkillAggregate, TokenBreakdown, UsageRange};
+
+    #[test]
+    fn skill_ranking_allocates_session_usage_by_recorded_invocations() {
+        let database = Database::open_in_memory().expect("database");
+        let now = Utc::now();
+        let session = SessionAggregate {
+            session_id: "skill-ranking-session".into(),
+            started_at: Some(now),
+            ended_at: Some(now),
+            tokens: TokenBreakdown {
+                input_tokens: 120,
+                output_tokens: 80,
+                cached_input_tokens: 60,
+                reasoning_tokens: 10,
+                total_tokens: 200,
+            },
+            requests: 1,
+            skills: vec![
+                SessionSkillAggregate {
+                    skill_name: "browser".into(),
+                    invocations: 1,
+                    last_used_at: Some(now),
+                    ..SessionSkillAggregate::default()
+                },
+                SessionSkillAggregate {
+                    skill_name: "github".into(),
+                    invocations: 1,
+                    last_used_at: Some(now),
+                    ..SessionSkillAggregate::default()
+                },
+            ],
+            ..SessionAggregate::default()
+        };
+
+        database
+            .upsert_session(&session, "skill-ranking-source", 1, 1)
+            .expect("store session");
+        database.rebuild_analytics().expect("rebuild analytics");
+
+        let skills = database
+            .skills(UsageRange::All, 20)
+            .expect("load skill ranking");
+        let browser = skills
+            .iter()
+            .find(|skill| skill.skill_name == "browser")
+            .expect("browser skill");
+
+        assert_eq!(browser.tokens.input_tokens, 60);
+        assert_eq!(browser.tokens.output_tokens, 40);
+        assert_eq!(browser.tokens.cached_input_tokens, 30);
+        assert_eq!(browser.tokens.total_tokens, 100);
+        assert_eq!(browser.cache_hit_ratio, Some(50.0));
+        assert_eq!(browser.attribution_confidence, Some(0.5));
     }
 }

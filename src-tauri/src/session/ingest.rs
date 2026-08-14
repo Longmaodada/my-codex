@@ -132,12 +132,7 @@ impl SessionIngestor {
             report.files_skipped = report.files_skipped.saturating_add(1);
             return Ok(());
         }
-        database.upsert_session(
-            &session,
-            &source_hash,
-            byte_size,
-            modified_ms,
-        )?;
+        database.upsert_session(&session, &source_hash, byte_size, modified_ms)?;
         report.files_processed = report.files_processed.saturating_add(1);
         report.sessions_upserted = report.sessions_upserted.saturating_add(1);
         Ok(())
@@ -215,6 +210,13 @@ mod tests {
         assert_eq!(first.sessions_upserted, 1);
         let second = ingestor.ingest(&database).expect("second ingest");
         assert_eq!(second.files_unchanged, 1);
-        assert_eq!(database.usage_totals(crate::analytics::UsageRange::All).expect("totals").tokens.total_tokens, 150);
+        assert_eq!(
+            database
+                .usage_totals(crate::analytics::UsageRange::All)
+                .expect("totals")
+                .tokens
+                .total_tokens,
+            150
+        );
     }
 }

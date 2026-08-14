@@ -7,8 +7,8 @@ use crate::{
 };
 
 use super::{
-    CapabilityProbe, CapabilityState, ProviderKind, ProviderOutput, QuotaProvider,
-    QuotaSnapshot, QuotaStatus, QuotaWindow,
+    CapabilityProbe, CapabilityState, ProviderKind, ProviderOutput, QuotaProvider, QuotaSnapshot,
+    QuotaStatus, QuotaWindow,
 };
 
 pub struct MockQuotaProvider;

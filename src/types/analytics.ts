@@ -96,7 +96,10 @@ export interface SkillUsage extends TokenBreakdown {
   invocations: number;
   projects: string[];
   lastUsedAt: string;
-  confidence: number;
+  /** Cache hit ratio for this skill's attributed input, when available. */
+  cacheHitRatio: number | null;
+  /** Attribution confidence is unavailable when the backend has no evidence score. */
+  confidence: number | null;
   source: MetricSource;
 }
 
@@ -105,6 +108,23 @@ export interface ModelUsage extends TokenBreakdown {
   requests: number;
   projects: number;
   cacheHitRatio: number;
+  source: MetricSource;
+}
+
+export interface TaskSkillUsage {
+  name: string;
+  invocations: number;
+}
+
+export interface TaskUsage extends TokenBreakdown {
+  id: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  projectName: string;
+  model: string;
+  requests: number;
+  activeSeconds: number;
+  skills: TaskSkillUsage[];
   source: MetricSource;
 }
 
@@ -119,6 +139,7 @@ export interface UsageSummary {
   cacheHitRatio: number;
   daily: DailyUsage[];
   projects: ProjectUsage[];
+  tasks: TaskUsage[];
   skills: SkillUsage[];
   models: ModelUsage[];
   /** Optional user-defined local goals; never interpreted as official quota. */

@@ -1,4 +1,7 @@
-use std::{path::PathBuf, time::{Duration, SystemTime}};
+use std::{
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 
 use walkdir::WalkDir;
 
@@ -31,7 +34,10 @@ impl ActivityDetector {
                     && entry.path().extension().and_then(|value| value.to_str()) == Some("jsonl")
             })
             .filter_map(|entry| entry.metadata().ok()?.modified().ok())
-            .any(|modified| now.duration_since(modified).map(|age| age <= within).unwrap_or(true))
+            .any(|modified| {
+                now.duration_since(modified)
+                    .map(|age| age <= within)
+                    .unwrap_or(true)
+            })
     }
 }
-

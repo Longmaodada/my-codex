@@ -131,6 +131,8 @@ pub struct SkillRankItem {
     pub tokens: TokenBreakdown,
     pub share: f64,
     pub average_tokens: i64,
+    pub cache_hit_ratio: Option<f64>,
+    pub attribution_confidence: Option<f64>,
     pub last_used_at: Option<DateTime<Utc>>,
     pub source: DataSource,
 }
@@ -197,6 +199,7 @@ pub struct DashboardAnalytics {
     pub all_time: UsageTotals,
     pub heatmap: Vec<HeatmapDay>,
     pub projects: Vec<ProjectRankItem>,
+    pub tasks: Vec<TaskUsage>,
     pub skills: Vec<SkillRankItem>,
     pub models: Vec<ModelRankItem>,
     pub cache: CacheAnalytics,
@@ -223,6 +226,29 @@ pub struct SessionSkillAggregate {
     pub invocations: i64,
     pub tokens: TokenBreakdown,
     pub last_used_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskSkillItem {
+    pub skill_name: String,
+    pub invocations: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskUsage {
+    pub session_id: String,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub project_name: Option<String>,
+    pub model: Option<String>,
+    #[serde(flatten)]
+    pub tokens: TokenBreakdown,
+    pub requests: i64,
+    pub active_seconds: i64,
+    pub skills: Vec<TaskSkillItem>,
+    pub source: DataSource,
 }
 
 pub fn ratio(numerator: i64, denominator: i64) -> f64 {

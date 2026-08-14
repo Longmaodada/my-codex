@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size};
 
 use crate::{
     error::{AppError, AppResult},
@@ -128,11 +128,9 @@ pub fn apply_settings(app: &AppHandle, settings: &AppSettings) -> AppResult<()> 
         .set_skip_taskbar(true)
         .map_err(|error| AppError::Window(error.to_string()))?;
     if let (Some(x), Some(y)) = (settings.widget_x, settings.widget_y) {
+        let (x, y) = safe_widget_position(app, &floating, x, y)?;
         floating
-            .set_position(Position::Logical(LogicalPosition::new(
-                f64::from(x),
-                f64::from(y),
-            )))
+            .set_position(Position::Physical(PhysicalPosition::new(x, y)))
             .map_err(|error| AppError::Window(error.to_string()))?;
     }
     if settings.show_floating_on_start {
@@ -145,6 +143,49 @@ pub fn apply_settings(app: &AppHandle, settings: &AppSettings) -> AppResult<()> 
             .map_err(|error| AppError::Window(error.to_string()))?;
     }
     Ok(())
+}
+
+fn safe_widget_position(
+    app: &AppHandle,
+    floating: &tauri::WebviewWindow,
+    x: i32,
+    y: i32,
+) -> AppResult<(i32, i32)> {
+    let size = floating
+        .outer_size()
+        .map_err(|error| AppError::Window(error.to_string()))?;
+    let width = i64::from(size.width);
+    let height = i64::from(size.height);
+    let x = i64::from(x);
+    let y = i64::from(y);
+
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| AppError::Window(error.to_string()))?;
+    let visible = monitors.iter().any(|monitor| {
+        let area = monitor.work_area();
+        let left = i64::from(area.position.x);
+        let top = i64::from(area.position.y);
+        let right = left + i64::from(area.size.width);
+        let bottom = top + i64::from(area.size.height);
+        x < right && x + width > left && y < bottom && y + height > top
+    });
+    if visible {
+        return Ok((x as i32, y as i32));
+    }
+
+    let monitor = app
+        .primary_monitor()
+        .map_err(|error| AppError::Window(error.to_string()))?
+        .or_else(|| monitors.first().cloned())
+        .ok_or_else(|| AppError::Window("no monitor is available".into()))?;
+    let area = monitor.work_area();
+    let right = i64::from(area.position.x) + i64::from(area.size.width);
+    let bottom = i64::from(area.position.y) + i64::from(area.size.height);
+    let next_x = (right - width - 24).max(i64::from(area.position.x));
+    let next_y =
+        (i64::from(area.position.y) + 24).min((bottom - height).max(i64::from(area.position.y)));
+    Ok((next_x as i32, next_y as i32))
 }
 
 pub fn current_widget_position(app: &AppHandle) -> AppResult<(i32, i32)> {

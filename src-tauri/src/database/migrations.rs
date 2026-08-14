@@ -157,4 +157,8 @@ pub const MIGRATIONS: &[&str] = &[
 
     PRAGMA user_version = 1;
     "#,
+    r#"
+    ALTER TABLE ingest_files
+        ADD COLUMN parser_version INTEGER NOT NULL DEFAULT 1;
+    "#,
 ];

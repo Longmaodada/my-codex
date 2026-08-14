@@ -16,9 +16,7 @@ use std::time::Duration;
 
 use app_state::AppState;
 use tauri::{Emitter, Manager};
-use tauri_plugin_global_shortcut::{
-    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -62,7 +60,10 @@ pub fn run() {
             app.manage(state);
 
             window::apply_settings(app.handle(), &settings)?;
-            window::set_compact(app.handle(), settings.capsule_mode)?;
+            window::set_compact(
+                app.handle(),
+                settings.capsule_mode && !settings.lock_widget_position,
+            )?;
             window::install_close_to_tray(app.handle())?;
             tray::setup(app)?;
             setup_global_shortcuts(app)?;

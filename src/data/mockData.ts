@@ -1,4 +1,4 @@
-import type { AppSnapshot, DailyUsage, ModelUsage, ProjectUsage, SkillUsage } from "../types/analytics";
+import type { AppSnapshot, DailyUsage, ModelUsage, ProjectUsage, SkillUsage, TaskUsage } from "../types/analytics";
 import { defaultSettings } from "./defaultSettings";
 
 const now = new Date();
@@ -12,6 +12,14 @@ const split = (total: number) => ({
   reasoning: Math.round(total * 0.05),
   total,
 });
+
+const splitSkill = (total: number, cacheHitRatio: number) => {
+  const tokens = split(total);
+  return {
+    ...tokens,
+    cached: Math.round(tokens.input * cacheHitRatio / 100),
+  };
+};
 
 function dateKey(offset: number) {
   const d = new Date(now);
@@ -62,17 +70,18 @@ export const projects: ProjectUsage[] = [
 }));
 
 export const skills: SkillUsage[] = [
-  ["frontend-design", 42, 1_840_000_000, ["Code项目配置生成工具", "ASR桌面系统"], 0.88],
-  ["github", 31, 1_220_000_000, ["hatch-pet-users-zhitong-codex-skills-2"], 0.96],
-  ["browser", 24, 860_000_000, ["Code项目配置生成工具"], 0.92],
-  ["security-analysis", 18, 620_000_000, ["内网代理池维护"], 0.78],
-  ["pdf", 12, 380_000_000, ["ASR桌面系统"], 0.81],
-].map(([name, invocations, total, linkedProjects, confidence]) => ({
+  ["frontend-design", 42, 1_840_000_000, ["Code项目配置生成工具", "ASR桌面系统"], 0.88, 78],
+  ["github", 31, 1_220_000_000, ["hatch-pet-users-zhitong-codex-skills-2"], 0.96, 64],
+  ["browser", 24, 860_000_000, ["Code项目配置生成工具"], 0.92, 51],
+  ["security-analysis", 18, 620_000_000, ["内网代理池维护"], 0.78, 39],
+  ["pdf", 12, 380_000_000, ["ASR桌面系统"], 0.81, 27],
+].map(([name, invocations, total, linkedProjects, confidence, cacheHitRatio]) => ({
   name: name as string,
   invocations: invocations as number,
-  ...split(total as number),
+  ...splitSkill(total as number, cacheHitRatio as number),
   projects: linkedProjects as string[],
   lastUsedAt: "今天",
+  cacheHitRatio: (total as number) > 0 ? cacheHitRatio as number : null,
   confidence: confidence as number,
   source: "mock",
 }));
@@ -91,6 +100,26 @@ export const models: ModelUsage[] = [
   cacheHitRatio: cacheHitRatio as number,
   source: "mock",
 })) as ModelUsage[];
+
+export const tasks: TaskUsage[] = [
+  ["task-001", "Code项目配置生成工具", "GPT-5.6", 420_000_000, ["frontend-design", "browser"]],
+  ["task-002", "hatch-pet-users-zhitong-codex-skills-2", "GPT-5.6", 360_000_000, ["github"]],
+  ["task-003", "Code项目配置生成工具", "GPT-5.6 Sol", 310_000_000, ["frontend-design", "impeccable"]],
+  ["task-004", "内网代理池维护", "GPT-5.5", 260_000_000, ["security-analysis"]],
+  ["task-005", "ASR桌面系统", "GPT-5.6", 220_000_000, ["pdf"]],
+  ["task-006", "Code项目配置生成工具", "GPT-5.6", 190_000_000, ["browser", "visualize"]],
+].map(([id, projectName, model, total, skillNames], index) => ({
+  id: id as string,
+  startedAt: new Date(now.getTime() - index * 19 * 60_000).toISOString(),
+  endedAt: new Date(now.getTime() - index * 19 * 60_000 + 18 * 60_000).toISOString(),
+  projectName: projectName as string,
+  model: model as string,
+  ...split(total as number),
+  requests: 1,
+  activeSeconds: 18 * 60,
+  skills: (skillNames as string[]).map((name) => ({ name, invocations: 1 })),
+  source: "mock",
+}));
 
 export const mockSnapshot: AppSnapshot = {
   quota: {
@@ -113,10 +142,11 @@ export const mockSnapshot: AppSnapshot = {
     lifetime: split(MOCK_LIFETIME),
     requestsToday: 184,
     sessionsToday: 22,
-    tasksToday: 37,
+    tasksToday: tasks.length,
     cacheHitRatio: 80,
     daily: dailyUsage,
     projects,
+    tasks,
     skills,
     models,
     goals: { today: 3_000_000_000, week: 20_000_000_000 },

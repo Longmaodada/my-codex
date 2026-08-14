@@ -59,6 +59,23 @@ interface RawSkill extends RawTokens {
   source: MetricSource;
 }
 
+interface RawTaskSkill {
+  name: string;
+  invocations: number;
+}
+
+interface RawTask extends RawTokens {
+  id: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  projectName: string;
+  model: string;
+  requests: number;
+  activeSeconds: number;
+  skills: RawTaskSkill[];
+  source: MetricSource;
+}
+
 interface RawProjectDetail {
   summary: RawProject;
   trend: RawTrendPoint[];
