@@ -9,7 +9,10 @@ use crate::{
         TokenBreakdown as InternalTokens, TrendPoint,
     },
     app_state::RefreshStatus,
-    quota::{ProviderKind, ProviderOutput, QuotaStatus, QuotaWindow},
+    quota::{
+        OfficialResetVoucher, OfficialResetVoucherStatus, ProviderKind, ProviderOutput,
+        QuotaStatus, QuotaWindow,
+    },
     settings::{
         AppSettings as InternalSettings, Language, QuotaWindowPreference, RefreshMode, ThemeMode,
     },
@@ -69,6 +72,41 @@ pub struct WireQuotaWindow {
     pub used_percent: Option<f64>,
     pub reset_at: Option<DateTime<Utc>>,
     pub window_minutes: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WireOfficialResetVoucher {
+    pub id: String,
+    pub status: &'static str,
+    pub expires_at: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    // Kept for the existing dashboard contract, which calls the display title
+    // a label. The source title and description remain available as well.
+    pub label: Option<String>,
+    pub source: MetricSource,
+}
+
+impl From<OfficialResetVoucher> for WireOfficialResetVoucher {
+    fn from(value: OfficialResetVoucher) -> Self {
+        let label = value.title.clone();
+        let status = match value.status {
+            OfficialResetVoucherStatus::Available => "available",
+            OfficialResetVoucherStatus::Used => "used",
+            OfficialResetVoucherStatus::Expired => "expired",
+            OfficialResetVoucherStatus::Unavailable => "unavailable",
+        };
+        Self {
+            id: value.id,
+            status,
+            expires_at: value.expires_at,
+            title: value.title,
+            description: value.description,
+            label,
+            source: MetricSource::Official,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -668,5 +706,30 @@ impl WireSettings {
             _ => return Err("primaryQuotaWindow must be primary or secondary".into()),
         };
         Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quota::{OfficialResetVoucher, OfficialResetVoucherStatus};
+
+    #[test]
+    fn reset_voucher_wire_preserves_public_fields() {
+        let wire = WireOfficialResetVoucher::from(OfficialResetVoucher {
+            id: "credit-01".into(),
+            status: OfficialResetVoucherStatus::Available,
+            expires_at: Some("2026-08-31T23:59:59Z".into()),
+            title: Some("August reset".into()),
+            description: Some("Official reset credit".into()),
+        });
+        let value = serde_json::to_value(wire).expect("wire voucher should serialize");
+        assert_eq!(value["id"], "credit-01");
+        assert_eq!(value["status"], "available");
+        assert_eq!(value["expiresAt"], "2026-08-31T23:59:59Z");
+        assert_eq!(value["title"], "August reset");
+        assert_eq!(value["description"], "Official reset credit");
+        assert_eq!(value["label"], "August reset");
+        assert_eq!(value["source"], "official");
     }
 }

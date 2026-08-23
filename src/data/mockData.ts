@@ -1,9 +1,16 @@
-import type { AppSnapshot, DailyUsage, ModelUsage, ProjectUsage, SkillUsage, TaskUsage } from "../types/analytics";
+import type { AppSnapshot, DailyUsage, ModelUsage, OfficialResetVoucher, ProjectUsage, SkillUsage, TaskUsage } from "../types/analytics";
 import { defaultSettings } from "./defaultSettings";
 
 const now = new Date();
 const iso = now.toISOString();
 const resetAt = new Date(now.getTime() + 2 * 86_400_000 + 13 * 3_600_000 + 42 * 60_000).toISOString();
+
+/** Demonstration-only entries; real mode stays unavailable until an official source is connected. */
+export const officialResetVouchers: OfficialResetVoucher[] = [
+  { id: "voucher-01", expiresAt: "2026-08-24T23:59:59+08:00", status: "available", source: "mock", label: "8 月额度卷 1" },
+  { id: "voucher-02", expiresAt: "2026-08-31T23:59:59+08:00", status: "available", source: "mock" },
+  { id: "voucher-03", expiresAt: "2026-09-07T23:59:59+08:00", status: "available", source: "mock" },
+];
 
 const split = (total: number) => ({
   input: Math.round(total * 0.51),
@@ -135,6 +142,7 @@ export const mockSnapshot: AppSnapshot = {
     ],
     message: "展示数据，仅用于验证完整界面",
   },
+  officialResetVouchers,
   usage: {
     today: split(MOCK_TODAY),
     week: split(MOCK_TODAY),

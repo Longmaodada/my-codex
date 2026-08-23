@@ -1,5 +1,6 @@
 ﻿import { GearSix, LockSimple, Power, SquaresFour, ArrowsClockwise, CloudCheck } from "@phosphor-icons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Info, Ticket, WarningCircle } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Heatmap } from "../components/charts/Heatmap";
@@ -8,6 +9,7 @@ import { BrandMark } from "../components/common/BrandMark";
 import { GlassCard } from "../components/common/GlassCard";
 import { MetricLegend } from "../components/common/MetricLegend";
 import { SourceBadge } from "../components/common/SourceBadge";
+import { summarizeResetVouchers } from "../dashboard/components/ResetVoucherCard";
 import { useCountdown } from "../hooks/useCountdown";
 import { isTauri, setWidgetCompact, windowAction } from "../services/backend";
 import { useAppStore } from "../stores/appStore";
@@ -31,9 +33,8 @@ export function FloatingWidget() {
   const remainingLabel = remainingPercent === null ? "—" : `${Math.round(remainingPercent)}%`;
   const countdown = useCountdown(selectedWindow?.resetAt ?? null);
   const todayGoal = usage?.goals?.today ?? null;
-  const weekGoal = usage?.goals?.week ?? null;
   const todayShare = todayGoal ? percentage(usage?.today.total ?? 0, todayGoal) : null;
-  const weekShare = weekGoal ? percentage(usage?.week.total ?? 0, weekGoal) : null;
+  const voucherSummary = summarizeResetVouchers(snapshot?.officialResetVouchers);
   const total90 = useMemo(() => usage?.daily.reduce((sum, day) => sum + day.total, 0) ?? 0, [usage?.daily]);
 
   useEffect(() => {
@@ -118,12 +119,16 @@ export function FloatingWidget() {
               </div>
             </GlassCard>
 
-            <GlassCard className="widget-targets">
-              <div className="card-heading"><span>Token 小目标</span><small>本地统计</small></div>
-              <div className="target-row"><span>今日</span><strong>{formatTokens(usage.today.total)}{todayGoal ? ` / ${formatTokens(todayGoal)}` : ""}</strong><em>{todayShare === null ? "—" : `${todayShare}%`}</em></div>
-              {todayShare !== null && <div className="thin-progress"><i style={{ transform: `scaleX(${todayShare / 100})` }} /></div>}
-              <div className="target-row"><span>本周</span><strong>{formatTokens(usage.week.total)}{weekGoal ? ` / ${formatTokens(weekGoal)}` : ""}</strong><em>{weekShare === null ? "—" : `${weekShare}%`}</em></div>
-              {weekShare !== null && <div className="thin-progress muted"><i style={{ transform: `scaleX(${weekShare / 100})` }} /></div>}
+            <GlassCard className="widget-voucher">
+              <div className="card-heading"><span><Ticket aria-hidden="true" weight="fill" />Codex 额度重置卷</span><small>官方发放</small></div>
+              <div className="voucher-summary">
+                <div><small>持有总数</small><strong>{voucherSummary.total === null ? "—" : voucherSummary.total}<em>张</em></strong></div>
+                <div><small>当前可使用</small><strong>{voucherSummary.available === null ? "—" : voucherSummary.available}<em>张</em></strong></div>
+              </div>
+              <div className={`voucher-note ${voucherSummary.unavailable ? "is-warning" : ""}`} role={voucherSummary.unavailable ? "status" : undefined}>
+                {voucherSummary.unavailable ? <WarningCircle aria-hidden="true" weight="fill" /> : <Info aria-hidden="true" weight="fill" />}
+                <span>{voucherSummary.unavailable ? "获取失败：官方重置卷信息暂不可用，请稍后刷新。" : "官方重置卷仅用于额度重置，不会删除 My Codex 的本地统计、设置或任何软件数据。"}</span>
+              </div>
               <div className="reset-row">
                 <span><small>剩余额度 · 下一次重置</small><strong>{remainingLabel} · {formatDateTime(selectedWindow?.resetAt ?? null)}</strong></span>
                 <em>{countdown}</em>

@@ -116,6 +116,18 @@ svg { display: block; }
 .widget-today .thin-progress { margin-top: 5px; }
 .widget-targets { padding: 7px 10px; min-height: 81px; }
 .card-heading { display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 8px; font-weight: 650; margin-bottom: 4px; }.card-heading small { color: var(--text-muted); font-size: 7px; }
+.widget-voucher { padding: 7px 10px; min-height: 102px; }
+.widget-voucher .card-heading > span { display: inline-flex; align-items: center; gap: 4px; }
+.widget-voucher .card-heading svg { width: 11px; height: 11px; color: var(--purple); }
+.voucher-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 3px 0 6px; }
+.voucher-summary > div { display: grid; gap: 1px; min-width: 0; }
+.voucher-summary > div + div { padding-left: 10px; border-left: 1px solid rgba(88,73,131,.08); }
+.voucher-summary small { color: var(--text-muted); font-size: 6px; }
+.voucher-summary strong { font-size: 16px; line-height: 1; font-variant-numeric: tabular-nums; }
+.voucher-summary em { margin-left: 3px; color: var(--text-secondary); font-size: 7px; font-style: normal; font-weight: 600; }
+.voucher-note { display: flex; align-items: flex-start; gap: 5px; padding: 5px 6px; border-radius: 7px; color: var(--text-secondary); background: rgba(83,102,239,.065); font-size: 6px; line-height: 1.45; }
+.voucher-note svg { flex: none; width: 11px; height: 11px; color: var(--blue); }
+.voucher-note.is-warning { background: rgba(229,179,68,.11); }.voucher-note.is-warning svg { color: #b68122; }
 .target-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; margin: 2px 0; font-size: 8px; }.target-row strong { font-size: 8px; }.target-row em { color: #6657e7; font-size: 7px; font-style: normal; font-weight: 700; }
 .widget-targets .thin-progress { height: 3px; }
 .reset-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(88,73,131,.08); }.reset-row > span { display: flex; flex-direction: column; gap: 1px; }.reset-row small { color: var(--text-muted); font-size: 6px; }.reset-row strong { font-size: 8px; }.reset-row em { font-size: 7px; font-style: normal; color: var(--purple); font-weight: 650; }
@@ -197,6 +209,24 @@ svg { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .001ms !important; }
+}
+
+.data-settings-group { gap: 14px; }
+.data-reset-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 13px; align-items: center; margin-top: 10px; padding: 15px; border: 1px solid rgba(213, 91, 103, .18); border-radius: 14px; background: rgba(213, 91, 103, .055); }
+.data-reset-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; color: #c95868; background: rgba(213, 91, 103, .12); }
+.data-reset-icon svg { width: 18px; }
+.data-reset-copy { display: grid; gap: 4px; min-width: 0; }
+.data-reset-copy strong { font-size: 11px; }
+.data-reset-copy small { color: var(--text-muted); font-size: 9px; line-height: 1.55; }
+.data-reset-status { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; }
+.data-reset-status svg { width: 12px; }
+.data-reset-status.is-success { color: #278c67; }.data-reset-status.is-error { color: #c95868; }
+.danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 92px; height: 34px; padding: 0 11px; border: 1px solid rgba(201, 88, 104, .25); border-radius: 9px; color: #b5495a; background: rgba(255, 255, 255, .42); font-size: 10px; font-weight: 650; cursor: pointer; }
+.danger-button:hover:not(:disabled) { color: #fff; background: #c95868; }.danger-button:disabled { cursor: wait; opacity: .6; }.danger-button svg { width: 14px; }
+
+@media (max-width: 680px) {
+  .data-reset-card { grid-template-columns: 34px minmax(0, 1fr); gap: 10px; }
+  .data-reset-card .danger-button { grid-column: 2; justify-self: start; }
 }
 
 /* Task-level Skill ledger: each row stays tied to one local session. */

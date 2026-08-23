@@ -22,6 +22,14 @@ impl Default for NotificationController {
 }
 
 impl NotificationController {
+    pub fn reset(&self) -> AppResult<()> {
+        self.sent_thresholds
+            .lock()
+            .map_err(|_| AppError::StatePoisoned)?
+            .clear();
+        Ok(())
+    }
+
     pub fn evaluate(
         &self,
         app: &AppHandle,

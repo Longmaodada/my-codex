@@ -22,7 +22,8 @@ use crate::{
 
 use super::{
     epoch_seconds, CapabilityProbe, CapabilityState, OfficialDailyUsage, OfficialUsageSummary,
-    ProviderKind, ProviderOutput, QuotaProvider, QuotaSnapshot, QuotaStatus, QuotaWindow,
+    OfficialResetCredits, OfficialResetVoucher, OfficialResetVoucherStatus, ProviderKind,
+    ProviderOutput, QuotaProvider, QuotaSnapshot, QuotaStatus, QuotaWindow,
 };
 
 const RPC_TIMEOUT: Duration = Duration::from_secs(12);
@@ -278,6 +279,10 @@ impl AppServerClient {
         let selected = rate_limits
             .as_ref()
             .and_then(RateLimitsResult::select_codex_bucket);
+        let official_reset_credits = rate_limits
+            .as_ref()
+            .and_then(|value| value.rate_limit_reset_credits.as_ref())
+            .map(|value| value.clone().into_public());
         let plan = selected
             .and_then(|value| value.plan_type.clone())
             .or(plan_from_account);
@@ -324,6 +329,7 @@ impl AppServerClient {
                 reset_at,
                 tokens: None,
                 official_usage: usage,
+                official_reset_credits,
                 message,
             },
         })
@@ -409,13 +415,16 @@ struct RateLimitsResult {
     #[serde(default)]
     rate_limits: Option<RateLimitBucket>,
     #[serde(default)]
-    rate_limits_by_limit_id: HashMap<String, RateLimitBucket>,
+    rate_limits_by_limit_id: Option<HashMap<String, RateLimitBucket>>,
+    #[serde(default)]
+    rate_limit_reset_credits: Option<RateLimitResetCreditsRpc>,
 }
 
 impl RateLimitsResult {
     fn select_codex_bucket(&self) -> Option<&RateLimitBucket> {
         self.rate_limits_by_limit_id
-            .get("codex")
+            .as_ref()
+            .and_then(|limits| limits.get("codex"))
             .or(self.rate_limits.as_ref())
     }
 }
@@ -441,6 +450,70 @@ struct RateLimitWindow {
     window_duration_mins: Option<i64>,
     #[serde(default)]
     resets_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RateLimitResetCreditsRpc {
+    #[serde(default)]
+    available_count: u64,
+    #[serde(default)]
+    credits: Option<Vec<RateLimitResetCreditRpc>>,
+}
+
+impl RateLimitResetCreditsRpc {
+    fn into_public(self) -> OfficialResetCredits {
+        OfficialResetCredits {
+            available_count: self.available_count,
+            credits: self
+                .credits
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(RateLimitResetCreditRpc::into_public)
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RateLimitResetCreditRpc {
+    id: String,
+    status: String,
+    #[serde(default)]
+    expires_at: Option<i64>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+impl RateLimitResetCreditRpc {
+    fn into_public(self) -> Option<OfficialResetVoucher> {
+        let id = bounded_text(self.id, 256)?;
+        Some(OfficialResetVoucher {
+            id,
+            status: match self.status.as_str() {
+                "available" => OfficialResetVoucherStatus::Available,
+                "used" => OfficialResetVoucherStatus::Used,
+                "expired" => OfficialResetVoucherStatus::Expired,
+                _ => OfficialResetVoucherStatus::Unavailable,
+            },
+            expires_at: self
+                .expires_at
+                .and_then(epoch_seconds)
+                .map(|value| value.to_rfc3339()),
+            title: self.title.and_then(|value| bounded_text(value, 512)),
+            description: self
+                .description
+                .and_then(|value| bounded_text(value, 2048)),
+        })
+    }
+}
+
+fn bounded_text(value: String, max_bytes: usize) -> Option<String> {
+    let value = value.trim().to_owned();
+    (!value.is_empty() && value.len() <= max_bytes).then_some(value)
 }
 
 fn window_from_rpc(window: &RateLimitWindow) -> QuotaWindow {
@@ -624,6 +697,84 @@ mod tests {
             value.select_codex_bucket().expect("bucket").limit_id,
             "codex"
         );
+    }
+
+    #[test]
+    fn parses_reset_credits_with_whitelisted_fields_only() {
+        let value = serde_json::from_value::<RateLimitsResult>(json!({
+            "rateLimits": { "limitId": "codex", "primary": null, "secondary": null },
+            "rateLimitResetCredits": {
+                "availableCount": 2,
+                "credits": [
+                    {
+                        "id": "credit-01",
+                        "status": "available",
+                        "expiresAt": 1788220799,
+                        "title": "August reset",
+                        "description": "Official reset credit",
+                        "accountId": "must-not-be-retained",
+                        "token": "must-not-be-retained"
+                    },
+                    {
+                        "id": "credit-02",
+                        "status": "mystery-status",
+                        "expiresAt": null,
+                        "title": null,
+                        "description": null
+                    }
+                ]
+            }
+        }))
+        .expect("reset credits should parse");
+
+        let credits = value
+            .rate_limit_reset_credits
+            .expect("reset credits should be present")
+            .into_public();
+        assert_eq!(credits.available_count, 2);
+        assert_eq!(credits.credits.len(), 2);
+        assert_eq!(credits.credits[0].id, "credit-01");
+        assert_eq!(credits.credits[0].expires_at.as_deref(), Some("2026-08-31T23:59:59+00:00"));
+        assert_eq!(credits.credits[0].title.as_deref(), Some("August reset"));
+        assert_eq!(credits.credits[0].description.as_deref(), Some("Official reset credit"));
+        assert!(matches!(
+            credits.credits[1].status,
+            OfficialResetVoucherStatus::Unavailable
+        ));
+        let serialized = serde_json::to_value(&credits).expect("public model should serialize");
+        assert!(serialized.get("accountId").is_none());
+        assert!(serialized.get("token").is_none());
+    }
+
+    #[test]
+    fn drops_empty_or_oversized_reset_credit_ids() {
+        let value = serde_json::from_value::<RateLimitResetCreditsRpc>(json!({
+            "availableCount": 3,
+            "credits": [
+                { "id": "  ", "status": "available" },
+                { "id": "x".repeat(257), "status": "available" },
+                { "id": "valid", "status": "available" }
+            ]
+        }))
+        .expect("reset credits should parse");
+        let credits = value.into_public();
+        assert_eq!(credits.available_count, 3);
+        assert_eq!(credits.credits.iter().map(|credit| credit.id.as_str()).collect::<Vec<_>>(), ["valid"]);
+    }
+
+    #[test]
+    fn accepts_null_optional_rate_limit_collections() {
+        let value = serde_json::from_value::<RateLimitsResult>(json!({
+            "rateLimits": { "limitId": "codex", "primary": null, "secondary": null },
+            "rateLimitsByLimitId": null,
+            "rateLimitResetCredits": { "availableCount": 1, "credits": null }
+        }))
+        .expect("null optional collections should remain compatible");
+
+        assert!(value.select_codex_bucket().is_some());
+        let credits = value.rate_limit_reset_credits.expect("credit count should remain available").into_public();
+        assert_eq!(credits.available_count, 1);
+        assert!(credits.credits.is_empty());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { loadSnapshot, refreshSnapshot, saveSettings } from "../services/backend";
+import { clearLocalData as clearLocalDataInBackend, loadSnapshot, refreshSnapshot, saveSettings } from "../services/backend";
 import type { NavigationTarget } from "../services/backendEvents";
 import type { AppSettings, AppSnapshot } from "../types/analytics";
 
@@ -13,6 +13,7 @@ interface AppState {
   initialize: () => Promise<void>;
   reload: () => Promise<void>;
   refresh: () => Promise<void>;
+  clearLocalData: () => Promise<void>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   navigate: (target: NavigationTarget) => void;
 }
@@ -64,6 +65,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     })();
     return refreshFlight;
+  },
+  clearLocalData: async () => {
+    try {
+      await clearLocalDataInBackend();
+      await get().reload();
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "本地统计重置失败" });
+      throw error;
+    }
   },
   updateSettings: async (patch) => {
     const current = get().snapshot;

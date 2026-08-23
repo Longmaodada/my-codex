@@ -41,6 +41,22 @@ export interface QuotaSnapshot {
   message?: string;
 }
 
+export type OfficialResetVoucherStatus = "available" | "used" | "expired" | "unavailable";
+
+/**
+ * A manually surfaced Codex-issued reset voucher. This is intentionally
+ * separate from QuotaWindow: a voucher is an account entitlement, not a
+ * local data reset and not a rolling quota window.
+ */
+export interface OfficialResetVoucher {
+  id: string;
+  expiresAt?: string | null;
+  status: OfficialResetVoucherStatus;
+  /** Optional because this field is account-issued wire data, not a local metric. */
+  source?: MetricSource;
+  label?: string;
+}
+
 export interface DailyUsage extends TokenBreakdown {
   date: string;
   requests: number;
@@ -172,6 +188,10 @@ export interface AppSettings {
 
 export interface AppSnapshot {
   quota: QuotaSnapshot;
+  /** Absent/null means the official account field was not available. [] is a successful empty result. */
+  officialResetVouchers?: OfficialResetVoucher[] | null;
+  /** Official count returned alongside the voucher details. */
+  officialResetVoucherAvailableCount?: number | null;
   usage: UsageSummary;
   settings: AppSettings;
 }

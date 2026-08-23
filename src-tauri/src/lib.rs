@@ -35,6 +35,7 @@ pub fn run() {
             commands::refresh_quota_snapshot,
             commands::get_refresh_status,
             commands::sync_local_usage,
+            commands::clear_local_data,
             commands::get_dashboard_analytics,
             commands::get_usage_totals,
             commands::get_usage_trend,

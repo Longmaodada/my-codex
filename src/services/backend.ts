@@ -59,6 +59,9 @@ export function createUnavailableSnapshot(
       ],
     },
     usage: emptyUsage(),
+    // Keep the field explicit for callers that need to distinguish an
+    // unavailable account response from a successful empty voucher result.
+    officialResetVouchers: null,
     // A failed bootstrap must never imply that mock data was loaded.
     settings: { ...structuredClone(settings), mockMode: false },
   };
@@ -107,6 +110,11 @@ export async function saveSettings(settings: AppSettings): Promise<AppSettings> 
     return structuredClone(browserPreviewSettings);
   }
   return invoke<AppSettings>("save_settings", { settings });
+}
+
+export async function clearLocalData(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("clear_local_data");
 }
 
 export async function windowAction(

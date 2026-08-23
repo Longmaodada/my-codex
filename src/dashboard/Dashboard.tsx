@@ -25,7 +25,7 @@ type Page = NavigationTarget;
 const tabs: Array<[Page, string]> = [["overview", "今日任务"], ["month", "月度趋势"], ["week", "逐任务记录"], ["skills", "Skill"], ["projects", "项目"], ["models", "模型"], ["cache", "缓存"]];
 
 export function Dashboard() {
-  const { snapshot, refreshing, refresh, lastRefreshedAt, updateSettings, navigationTarget } = useAppStore();
+  const { snapshot, refreshing, refresh, clearLocalData, lastRefreshedAt, updateSettings, navigationTarget } = useAppStore();
   const [page, setPage] = useState<Page>(() => new URLSearchParams(location.search).get("page") === "settings" ? "settings" : "overview");
   const [selectedProject, setSelectedProject] = useState<ProjectUsage | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -85,7 +85,7 @@ export function Dashboard() {
             {page === "skills" && <SkillsPage skills={snapshot.usage.skills} />}
             {page === "models" && <ModelsPage models={snapshot.usage.models} />}
             {page === "cache" && <CachePage snapshot={snapshot} />}
-            {page === "settings" && <SettingsPage settings={snapshot.settings} onChange={(patch) => void updateSettings(patch)} />}
+            {page === "settings" && <SettingsPage settings={snapshot.settings} onChange={(patch) => void updateSettings(patch)} onResetData={clearLocalData} />}
           </motion.section>
         </AnimatePresence>
       </section>

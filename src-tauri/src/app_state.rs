@@ -121,6 +121,29 @@ impl AppState {
         Ok(settings)
     }
 
+    pub fn clear_local_data(&self) -> AppResult<()> {
+        self.database.clear_local_data()?;
+        *self.latest_quota.write().map_err(|_| AppError::StatePoisoned)? = ProviderOutput {
+            provider: ProviderKind::Unavailable,
+            capabilities: CapabilityProbe::default(),
+            snapshot: QuotaSnapshot::unavailable(
+                ProviderKind::Unavailable,
+                "本地数据已重置；尚未取得新的官方额度。",
+            ),
+        };
+        {
+            let mut schedule = self
+                .refresh_schedule
+                .lock()
+                .map_err(|_| AppError::StatePoisoned)?;
+            schedule.last_success_at = None;
+            schedule.next_refresh_at = Utc::now();
+            schedule.consecutive_failures = 0;
+        }
+        self.notifications.reset()?;
+        Ok(())
+    }
+
     pub fn current_quota(&self) -> AppResult<ProviderOutput> {
         self.latest_quota
             .read()

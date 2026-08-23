@@ -105,6 +105,32 @@ pub struct OfficialDailyUsage {
     pub tokens: i64,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OfficialResetVoucherStatus {
+    Available,
+    Used,
+    Expired,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfficialResetVoucher {
+    pub id: String,
+    pub status: OfficialResetVoucherStatus,
+    pub expires_at: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfficialResetCredits {
+    pub available_count: u64,
+    pub credits: Vec<OfficialResetVoucher>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaSnapshot {
@@ -118,6 +144,7 @@ pub struct QuotaSnapshot {
     pub reset_at: Option<DateTime<Utc>>,
     pub tokens: Option<TokenBreakdown>,
     pub official_usage: Option<OfficialUsageSummary>,
+    pub official_reset_credits: Option<OfficialResetCredits>,
     pub message: Option<String>,
 }
 
@@ -134,6 +161,7 @@ impl QuotaSnapshot {
             reset_at: None,
             tokens: None,
             official_usage: None,
+            official_reset_credits: None,
             message: Some(message.into()),
         }
     }
@@ -202,6 +230,7 @@ impl QuotaSnapshot {
                 .normalize()
             }),
             official_usage: None,
+            official_reset_credits: None,
             message: None,
         })
     }

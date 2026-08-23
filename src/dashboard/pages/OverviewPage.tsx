@@ -4,6 +4,7 @@ import { GlassCard } from "../../components/common/GlassCard";
 import type { AppSnapshot, ProjectUsage, UsageRange } from "../../types/analytics";
 import { InsightsPanel } from "../components/InsightsPanel";
 import { ProjectRanking } from "../components/ProjectRanking";
+import { ResetVoucherCard } from "../components/ResetVoucherCard";
 
 const ranges = ["24H", "7D", "30D", "90D", "ALL"];
 type Range = (typeof ranges)[number];
@@ -12,6 +13,7 @@ export function OverviewPage({ snapshot, onProject, defaultRange = null }: { sna
   const [range, setRange] = useState<Range>(defaultRange ?? "7D");
   const count = range === "24H" ? 2 : range === "7D" ? 7 : range === "30D" ? 30 : range === "90D" ? 90 : snapshot.usage.daily.length;
   const rankingRange: UsageRange = defaultRange === "30D" ? "thirtyDays" : defaultRange === "7D" ? "sevenDays" : "today";
+  const officialResetVouchers = snapshot.officialResetVouchers;
   return (
     <div className="overview-stack">
       {defaultRange && <GlassCard className="trend-card">
@@ -21,6 +23,7 @@ export function OverviewPage({ snapshot, onProject, defaultRange = null }: { sna
         </div>
         <UsageTrend data={snapshot.usage.daily.slice(-count)} />
       </GlassCard>}
+      {!defaultRange && <ResetVoucherCard vouchers={officialResetVouchers ?? []} reportedAvailableCount={snapshot.officialResetVoucherAvailableCount ?? undefined} unavailable={officialResetVouchers == null} />}
       <div className="overview-columns">
         <ProjectRanking projects={snapshot.usage.projects} onSelect={onProject} initialRange={rankingRange} />
         <InsightsPanel snapshot={snapshot} />

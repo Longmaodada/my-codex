@@ -18,13 +18,15 @@ use crate::{
     window::{self, WindowTarget},
 };
 
-use wire::{WireQuotaSnapshot, WireSettings, WireUsageSummary};
+use wire::{WireOfficialResetVoucher, WireQuotaSnapshot, WireSettings, WireUsageSummary};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BootstrapResponse {
     pub settings: WireSettings,
     pub quota: WireQuotaSnapshot,
+    pub official_reset_vouchers: Option<Vec<WireOfficialResetVoucher>>,
+    pub official_reset_voucher_available_count: Option<u64>,
     pub usage: WireUsageSummary,
 }
 
@@ -52,9 +54,24 @@ pub async fn bootstrap(state: State<'_, AppState>) -> CommandResult<BootstrapRes
         .database
         .dashboard_analytics()
         .map_err(CommandError::from)?;
+    let official_reset_vouchers = quota.snapshot.official_reset_credits.as_ref().map(|credits| {
+        credits
+            .credits
+            .clone()
+            .into_iter()
+            .map(WireOfficialResetVoucher::from)
+            .collect()
+    });
+    let official_reset_voucher_available_count = quota
+        .snapshot
+        .official_reset_credits
+        .as_ref()
+        .map(|credits| credits.available_count);
     Ok(BootstrapResponse {
         settings: settings.clone().into(),
         quota: WireQuotaSnapshot::from_output(quota, &refresh),
+        official_reset_vouchers,
+        official_reset_voucher_available_count,
         usage: if settings.mock_mode {
             WireUsageSummary::mock()
         } else {
@@ -116,6 +133,11 @@ pub async fn sync_local_usage(state: State<'_, AppState>) -> CommandResult<Inges
     })?
     .map_err(CommandError::from)?;
     Ok(report)
+}
+
+#[tauri::command]
+pub fn clear_local_data(state: State<'_, AppState>) -> CommandResult<()> {
+    state.clear_local_data().map_err(CommandError::from)
 }
 
 #[tauri::command]

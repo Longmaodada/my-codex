@@ -279,6 +279,24 @@ impl Database {
         Ok(())
     }
 
+    pub fn clear_local_data(&self) -> AppResult<()> {
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction()?;
+        transaction.execute_batch(
+            "DELETE FROM session_skills;
+             DELETE FROM session_usage;
+             DELETE FROM ingest_files;
+             DELETE FROM daily_usage;
+             DELETE FROM project_usage;
+             DELETE FROM skill_usage;
+             DELETE FROM model_usage;
+             DELETE FROM usage_snapshots;
+             DELETE FROM quota_snapshots;",
+        )?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn prune(&self, retention_days: u16) -> AppResult<usize> {
         let cutoff = (Utc::now() - chrono::Duration::days(i64::from(retention_days))).to_rfc3339();
         let deleted = self.connection()?.execute(
@@ -289,6 +307,46 @@ impl Database {
             self.rebuild_analytics()?;
         }
         Ok(deleted)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Database;
+    use crate::settings::AppSettings;
+    use rusqlite::params;
+
+    #[test]
+    fn clear_local_data_removes_statistics_and_keeps_settings() {
+        let database = Database::open_in_memory().expect("database");
+        database.save_settings(&AppSettings::default()).expect("settings");
+        {
+            let connection = database.connection.lock().expect("connection");
+            connection.execute(
+                "INSERT INTO session_usage(session_id, started_at, updated_at) VALUES(?1, ?2, ?2)",
+                params!["session-1", "2026-08-22T00:00:00Z"],
+            ).expect("session");
+            connection.execute(
+                "INSERT INTO session_skills(session_id, skill_name) VALUES(?1, ?2)",
+                params!["session-1", "browser"],
+            ).expect("skill");
+            connection.execute("INSERT INTO daily_usage(date) VALUES('2026-08-22')", []).expect("daily");
+            connection.execute("INSERT INTO usage_snapshots(captured_at, source) VALUES('2026-08-22T00:00:00Z', 'local')", []).expect("snapshot");
+        }
+
+        database.clear_local_data().expect("clear local data");
+
+        let connection = database.connection.lock().expect("connection");
+        for table in ["session_usage", "session_skills", "daily_usage", "usage_snapshots", "quota_snapshots"] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
+                .expect("count");
+            assert_eq!(count, 0, "{table} should be empty");
+        }
+        let settings = connection
+            .query_row("SELECT value_json FROM settings WHERE key = 'app'", [], |row| row.get::<_, String>(0))
+            .expect("settings remain");
+        assert!(!settings.is_empty());
     }
 }
 

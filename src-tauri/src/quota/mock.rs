@@ -52,6 +52,7 @@ impl QuotaProvider for MockQuotaProvider {
                     total_tokens: 2_900_000_000,
                 }),
                 official_usage: None,
+                official_reset_credits: None,
                 message: Some("Mock Mode：仅用于界面演示，不是官方额度或账单数据。".into()),
             },
         })
